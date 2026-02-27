@@ -1,0 +1,15 @@
+# Playlist aliases — map short names to Sonos Favorites
+playlists:
+  altwave: "Alt Wave"
+
+# Speaker aliases — map short names to device names
+speakers:
+  cthulhu: "cthulhu"
+
+# Defaults
+default_speaker: cthulhu
+default_volume: 25
+
+# Server
+host: "127.0.0.1"
+port: 9271
