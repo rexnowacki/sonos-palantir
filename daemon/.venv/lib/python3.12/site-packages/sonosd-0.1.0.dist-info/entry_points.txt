@@ -1,0 +1,2 @@
+[console_scripts]
+sonosd = sonosd.server:main

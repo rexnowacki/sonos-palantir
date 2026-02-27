@@ -1,0 +1,9 @@
+pyproject.toml
+sonosd/__init__.py
+sonosd/models.py
+sonosd.egg-info/PKG-INFO
+sonosd.egg-info/SOURCES.txt
+sonosd.egg-info/dependency_links.txt
+sonosd.egg-info/entry_points.txt
+sonosd.egg-info/requires.txt
+sonosd.egg-info/top_level.txt

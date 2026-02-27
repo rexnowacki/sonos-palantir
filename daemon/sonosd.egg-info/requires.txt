@@ -1,0 +1,8 @@
+soco>=0.30
+fastapi>=0.110
+uvicorn>=0.29
+pyyaml>=6.0
+
+[dev]
+pytest>=8.0
+httpx>=0.27
