@@ -56,3 +56,30 @@ def test_get_all_speakers_returns_dict():
     manager, mock_speaker = _make_manager()
     all_speakers = manager.get_all_speakers()
     assert "cthulhu" in all_speakers
+
+
+def test_play_favorite_uses_coordinator_when_speaker_is_follower():
+    """play_favorite must call play_uri on the coordinator, not on a follower."""
+    manager, mock_follower = _make_manager()
+
+    # Set up a separate coordinator mock
+    mock_coordinator = MagicMock()
+    mock_coordinator.player_name = "Family Room"
+
+    # cthulhu is a group member — its coordinator is Family Room
+    mock_follower.group = MagicMock()
+    mock_follower.group.coordinator = mock_coordinator
+
+    # Set up favorites on the coordinator (where they should be fetched from)
+    mock_fav = MagicMock()
+    mock_fav.title = "Alt Wave"
+    mock_fav.reference.get_uri.return_value = "x-sonos-spotify:..."
+    mock_fav.resource_meta_data = "<meta/>"
+    mock_coordinator.music_library.get_sonos_favorites.return_value = [mock_fav]
+    mock_follower.music_library.get_sonos_favorites.return_value = [mock_fav]
+
+    manager.play_favorite(mock_follower, "altwave")
+
+    # play_uri must be called on the coordinator, not the follower
+    mock_coordinator.play_uri.assert_called_once()
+    mock_follower.play_uri.assert_not_called()

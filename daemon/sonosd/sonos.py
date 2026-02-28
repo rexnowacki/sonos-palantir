@@ -60,6 +60,10 @@ class SonosManager:
 
     def play_favorite(self, speaker: soco.SoCo, favorite_name: str) -> None:
         """Play a Sonos Favorite by exact name or alias."""
+        # Always operate on the group coordinator — playing on a follower raises SoCoSlaveException
+        if speaker.group:
+            speaker = speaker.group.coordinator
+
         resolved = self._playlist_map.get(favorite_name, favorite_name)
 
         favorites = speaker.music_library.get_sonos_favorites()
