@@ -127,4 +127,18 @@ impl ApiClient {
             .send().await?;
         Ok(())
     }
+
+    pub async fn group_all(&self) -> anyhow::Result<()> {
+        self.client.post(format!("{}/group", self.base_url))
+            .json(&serde_json::json!({"speakers": ["all"]}))
+            .send().await?;
+        Ok(())
+    }
+
+    pub async fn ungroup_all(&self) -> anyhow::Result<()> {
+        self.client.post(format!("{}/ungroup", self.base_url))
+            .json(&SpeakerRequest { speaker: "all".to_string() })
+            .send().await?;
+        Ok(())
+    }
 }
