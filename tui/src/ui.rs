@@ -439,8 +439,10 @@ fn format_time(seconds: u64) -> String {
 }
 
 fn truncate(s: &str, max: usize) -> String {
-    if s.len() > max {
-        format!("{}…", &s[..max - 1])
+    let mut chars = s.chars();
+    let truncated: String = chars.by_ref().take(max.saturating_sub(1)).collect();
+    if chars.next().is_some() {
+        format!("{}…", truncated)
     } else {
         s.to_string()
     }

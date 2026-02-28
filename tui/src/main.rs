@@ -124,23 +124,29 @@ async fn execute_command(app: &mut App, client: &ApiClient, input: &str) -> Resu
                 let _ = client.set_volume(&id, v).await;
                 if v == 100 {
                     app.set_status("You shall not pass... 100.", 3);
+                } else {
+                    app.set_status(format!("Volume set to {}.", v), 2);
                 }
             }
         }
         Some(Command::GroupAll) => {
             let _ = client.group_all().await;
+            app.set_status("The fellowship is assembled.", 3);
         }
         Some(Command::Ungroup) => {
             let _ = client.ungroup_all().await;
+            app.set_status("The company is scattered to the winds.", 3);
         }
         Some(Command::Next) => {
             if let Some(id) = app.speaker_id() {
                 let _ = client.next(&id).await;
+                app.set_status("Onward, into shadow.", 2);
             }
         }
         Some(Command::Prev) => {
             if let Some(id) = app.speaker_id() {
                 let _ = client.previous(&id).await;
+                app.set_status("Back to the beginning.", 2);
             }
         }
         Some(Command::Sleep(mins)) => {
@@ -151,7 +157,7 @@ async fn execute_command(app: &mut App, client: &ApiClient, input: &str) -> Resu
         }
         Some(Command::SleepCancel) => {
             app.sleep_until = None;
-            app.set_status("Sleep timer cancelled.", 2);
+            app.set_status("The Palantir's dream is dispelled — sleep cancelled.", 3);
         }
         Some(Command::Reload) => {
             let _ = client.reload().await;
@@ -172,7 +178,7 @@ async fn execute_command(app: &mut App, client: &ApiClient, input: &str) -> Resu
                     }
                 }
             }
-            app.set_status("Reloaded config.yaml", 3);
+            app.set_status("The scrolls are refreshed. Reloaded config.yaml.", 3);
         }
         Some(Command::Unknown(_)) | None => {
             app.set_status("Speak, friend — but speak clearly.", 3);
