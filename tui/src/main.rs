@@ -138,6 +138,13 @@ async fn execute_command(app: &mut App, client: &ApiClient, input: &str) -> Resu
         Some(Command::Volume(v)) => {
             if let Some(id) = app.speaker_id() {
                 let _ = client.set_volume(&id, v).await;
+                // Immediately reflect in local state — don't wait for the 2s background poll
+                for sp in &mut app.speakers {
+                    if sp.alias.as_deref().unwrap_or(&sp.name) == id {
+                        sp.volume = v;
+                        break;
+                    }
+                }
                 if v == 100 {
                     app.set_status("You shall not pass... 100.", 3);
                 } else {

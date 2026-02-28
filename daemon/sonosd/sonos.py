@@ -139,7 +139,17 @@ class SonosManager:
 
         uri = match.reference.get_uri()
         meta = match.resource_meta_data
-        speaker.play_uri(uri, meta)
+        try:
+            speaker.play_uri(uri, meta)
+        except soco.exceptions.SoCoUPnPException as e:
+            if "714" in str(e):
+                # Streaming service containers (e.g. Spotify playlists) can't be played
+                # directly via SetAVTransportURI — use the queue mechanism instead.
+                speaker.clear_queue()
+                speaker.add_uri_to_queue(uri, meta, position=0)
+                speaker.play_from_queue(0)
+            else:
+                raise
 
     def group_speakers(self, names_or_aliases: list[str]) -> soco.SoCo:
         """Group speakers. First becomes coordinator."""

@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Gauge, List, ListItem, Paragraph},
+    widgets::{Block, Borders, Gauge, List, ListItem, ListState, Paragraph},
     Frame,
 };
 use crate::app::{App, Panel};
@@ -244,8 +244,15 @@ fn draw_playlists(f: &mut Frame, app: &App, area: Rect) {
         item
     }).collect();
 
-    let list = List::new(items).block(block);
-    f.render_widget(list, area);
+    let list = List::new(items)
+        .block(block)
+        .highlight_style(Style::default()); // don't override our manual item styling
+
+    let mut state = ListState::default();
+    if !app.playlists.is_empty() {
+        state.select(Some(app.playlist_index));
+    }
+    f.render_stateful_widget(list, area, &mut state);
 }
 
 fn draw_now_playing(f: &mut Frame, app: &App, area: Rect) {
