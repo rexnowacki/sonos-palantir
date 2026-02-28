@@ -99,3 +99,67 @@ def test_play_favorite_uses_coordinator_when_speaker_is_follower():
     # play_uri must be called on the coordinator, not the follower
     mock_coordinator.play_uri.assert_called_once()
     mock_follower.play_uri.assert_not_called()
+
+
+def test_get_speaker_info_follower_uses_coordinator_track():
+    """If a follower has no track info, it should fall back to the coordinator's."""
+    manager, mock_follower = _make_manager()
+
+    mock_coordinator = MagicMock()
+    mock_coordinator.player_name = "Family Room"
+    mock_follower.group = MagicMock()
+    mock_follower.group.coordinator = mock_coordinator
+
+    mock_follower.get_current_transport_info.return_value = {
+        "current_transport_state": "PLAYING"
+    }
+    mock_follower.get_current_track_info.return_value = {
+        "title": "",
+        "artist": "",
+        "album": "",
+        "duration": "0:00:00",
+        "position": "0:00:00",
+        "album_art": "",
+    }
+    mock_coordinator.get_current_track_info.return_value = {
+        "title": "Alt Wave Track",
+        "artist": "Some Artist",
+        "album": "Some Album",
+        "duration": "0:03:00",
+        "position": "0:01:00",
+        "album_art": "",
+    }
+
+    info = manager.get_speaker_info(mock_follower)
+
+    assert info["track"] is not None
+    assert info["track"]["title"] == "Alt Wave Track"
+    assert info["track"]["artist"] == "Some Artist"
+    assert info["group_coordinator"] == "Family Room"
+    assert info["name"] == "cthulhu"
+
+
+def test_get_speaker_info_coordinator_does_not_double_fetch():
+    """A coordinator must not call get_current_track_info on itself twice."""
+    manager, mock_speaker = _make_manager()
+
+    # The speaker is its own coordinator
+    mock_speaker.group = MagicMock()
+    mock_speaker.group.coordinator = mock_speaker
+
+    mock_speaker.get_current_transport_info.return_value = {
+        "current_transport_state": "PLAYING"
+    }
+    mock_speaker.get_current_track_info.return_value = {
+        "title": "Coordinator Track",
+        "artist": "Some Artist",
+        "album": "Some Album",
+        "duration": "0:03:00",
+        "position": "0:01:00",
+        "album_art": "",
+    }
+
+    info = manager.get_speaker_info(mock_speaker)
+
+    mock_speaker.get_current_track_info.assert_called_once()
+    assert info["track"]["title"] == "Coordinator Track"

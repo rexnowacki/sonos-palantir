@@ -71,7 +71,21 @@ class SonosManager:
                 "art_uri": track_info.get("album_art", ""),
             }
 
-        coordinator = speaker.group.coordinator.player_name if speaker.group else None
+        coordinator_sp = speaker.group.coordinator if speaker.group else None
+        coordinator_name = coordinator_sp.player_name if coordinator_sp else None
+
+        # Follower has no track info — fetch from coordinator
+        if track is None and coordinator_sp and coordinator_sp != speaker:
+            coord_track = coordinator_sp.get_current_track_info()
+            if coord_track.get("title"):
+                track = {
+                    "title": coord_track.get("title", ""),
+                    "artist": coord_track.get("artist", ""),
+                    "album": coord_track.get("album", ""),
+                    "duration": _parse_duration(coord_track.get("duration", "0:00:00")),
+                    "position": _parse_duration(coord_track.get("position", "0:00:00")),
+                    "art_uri": coord_track.get("album_art", ""),
+                }
 
         return {
             "name": speaker.player_name,
@@ -80,7 +94,7 @@ class SonosManager:
             "volume": speaker.volume,
             "muted": speaker.mute,
             "state": info.get("current_transport_state", "UNKNOWN"),
-            "group_coordinator": coordinator,
+            "group_coordinator": coordinator_name,
             "track": track,
         }
 
