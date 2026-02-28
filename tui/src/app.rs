@@ -113,10 +113,9 @@ impl App {
             }
         }
         if let Some(sleep_until) = self.sleep_until {
-            if sleep_until > std::time::Instant::now() {
-                let secs = sleep_until
-                    .duration_since(std::time::Instant::now())
-                    .as_secs();
+            let now = std::time::Instant::now();
+            if let Some(remaining) = sleep_until.checked_duration_since(now) {
+                let secs = remaining.as_secs();
                 return format!("Sleep: {}:{:02} remaining", secs / 60, secs % 60);
             }
         }
@@ -207,5 +206,22 @@ mod tests {
         let mut app = App::new();
         app.set_status("The gates of Moria are sealed.", 5);
         assert_eq!(app.active_status(), "The gates of Moria are sealed.");
+    }
+
+    #[test]
+    fn test_active_status_returns_empty_when_expired() {
+        let mut app = App::new();
+        // Set a status that already expired
+        app.status_message = Some("old message".to_string());
+        app.status_until = Some(std::time::Instant::now() - std::time::Duration::from_secs(1));
+        assert_eq!(app.active_status(), "");
+    }
+
+    #[test]
+    fn test_active_status_returns_sleep_countdown() {
+        let mut app = App::new();
+        app.sleep_until = Some(std::time::Instant::now() + std::time::Duration::from_secs(90));
+        let status = app.active_status();
+        assert!(status.starts_with("Sleep: 1:"), "Expected 'Sleep: 1:xx remaining', got: {}", status);
     }
 }

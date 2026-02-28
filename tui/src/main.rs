@@ -136,9 +136,7 @@ async fn handle_key(app: &mut App, client: &ApiClient, key: KeyEvent) -> Result<
                 (app.speaker_id(), app.selected_playlist())
             {
                 let _ = client.play(&speaker_id, &playlist.alias).await;
-                app.status_message = Some(format!(
-                    "Playing {} on {}", playlist.alias, speaker_id
-                ));
+                app.set_status(format!("Playing {} on {}", playlist.alias, speaker_id), 3);
             }
         }
 
