@@ -6,6 +6,7 @@ use ratatui::{
     Frame,
 };
 use crate::app::{App, Panel};
+use crate::command;
 
 const BG: Color = Color::Rgb(20, 20, 30);
 const FG: Color = Color::Rgb(200, 200, 210);
@@ -361,6 +362,30 @@ fn draw_status_line(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_help_bar(f: &mut Frame, app: &App, area: Rect) {
+    if let Some(input) = &app.command_input {
+        let playlist_names: Vec<String> = app.playlists
+            .iter()
+            .map(|p| p.favorite_name.clone())
+            .collect();
+        let ghost = command::autocomplete(input, &playlist_names);
+
+        let mut spans = vec![
+            Span::styled("  :", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
+            Span::styled(input.clone(), Style::default().fg(FG)),
+        ];
+        if let Some(g) = ghost {
+            spans.push(Span::styled(g, Style::default().fg(DIM)));
+        }
+        spans.push(Span::styled("▌", Style::default().fg(ACCENT)));
+
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(ACCENT))
+            .style(Style::default().bg(BG));
+        f.render_widget(Paragraph::new(Line::from(spans)).block(block), area);
+        return;
+    }
+
     if let Some(input) = &app.volume_input {
         let prompt = Line::from(vec![
             Span::styled("  Vol: ", Style::default().fg(ACCENT)),
@@ -391,6 +416,8 @@ fn draw_help_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(" vol  ", Style::default().fg(DIM)),
         Span::styled("v", Style::default().fg(ACCENT)),
         Span::styled(" vol#  ", Style::default().fg(DIM)),
+        Span::styled(":", Style::default().fg(ACCENT)),
+        Span::styled(" cmd  ", Style::default().fg(DIM)),
         Span::styled("n/p", Style::default().fg(ACCENT)),
         Span::styled(" track  ", Style::default().fg(DIM)),
         Span::styled("g", Style::default().fg(ACCENT)),

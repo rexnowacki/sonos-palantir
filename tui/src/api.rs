@@ -163,4 +163,11 @@ impl ApiClient {
             .send().await?;
         Ok(())
     }
+
+    pub async fn reload(&self) -> anyhow::Result<()> {
+        self.client
+            .post(format!("{}/reload", self.base_url))
+            .send().await?;
+        Ok(())
+    }
 }

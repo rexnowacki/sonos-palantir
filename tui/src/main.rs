@@ -100,7 +100,134 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Resu
     Ok(())
 }
 
+async fn execute_command(app: &mut App, client: &ApiClient, input: &str) -> Result<()> {
+    use command::Command;
+    match command::parse(input) {
+        Some(Command::Play(name)) => {
+            if let Some(id) = app.speaker_id() {
+                let playlist = app.playlists.iter().find(|p| {
+                    p.alias.to_lowercase().contains(&name.to_lowercase())
+                        || p.favorite_name.to_lowercase().contains(&name.to_lowercase())
+                });
+                if let Some(pl) = playlist {
+                    let alias = pl.alias.clone();
+                    let _ = client.play(&id, &alias).await;
+                    history::record_play(&alias);
+                    app.set_status(format!("Playing {} on {}", alias, id), 3);
+                } else {
+                    app.set_status("Not all those who wander are found in this network.", 4);
+                }
+            }
+        }
+        Some(Command::Volume(v)) => {
+            if let Some(id) = app.speaker_id() {
+                let _ = client.set_volume(&id, v).await;
+                if v == 100 {
+                    app.set_status("You shall not pass... 100.", 3);
+                }
+            }
+        }
+        Some(Command::GroupAll) => {
+            let _ = client.group_all().await;
+        }
+        Some(Command::Ungroup) => {
+            let _ = client.ungroup_all().await;
+        }
+        Some(Command::Next) => {
+            if let Some(id) = app.speaker_id() {
+                let _ = client.next(&id).await;
+            }
+        }
+        Some(Command::Prev) => {
+            if let Some(id) = app.speaker_id() {
+                let _ = client.previous(&id).await;
+            }
+        }
+        Some(Command::Sleep(mins)) => {
+            app.sleep_until = Some(
+                std::time::Instant::now()
+                    + std::time::Duration::from_secs(mins as u64 * 60)
+            );
+        }
+        Some(Command::SleepCancel) => {
+            app.sleep_until = None;
+            app.set_status("Sleep timer cancelled.", 2);
+        }
+        Some(Command::Reload) => {
+            let _ = client.reload().await;
+            if let Ok(playlists) = client.get_playlists().await {
+                app.playlists = playlists;
+            }
+            if let Ok(favs) = client.get_favorites().await {
+                let existing: std::collections::HashSet<String> = app.playlists
+                    .iter()
+                    .map(|p| p.favorite_name.to_lowercase())
+                    .collect();
+                for title in favs {
+                    if !existing.contains(&title.to_lowercase()) {
+                        app.playlists.push(crate::api::Playlist {
+                            alias: title.clone(),
+                            favorite_name: title,
+                        });
+                    }
+                }
+            }
+            app.set_status("Reloaded config.yaml", 3);
+        }
+        Some(Command::Unknown(_)) | None => {
+            app.set_status("Speak, friend — but speak clearly.", 3);
+        }
+    }
+    Ok(())
+}
+
 async fn handle_key(app: &mut App, client: &ApiClient, key: KeyEvent) -> Result<()> {
+    // Command mode intercepts all keys
+    if app.command_input.is_some() {
+        match key.code {
+            KeyCode::Char(c) if !key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+                app.command_input.as_mut().unwrap().push(c);
+            }
+            KeyCode::Backspace => {
+                let input = app.command_input.as_mut().unwrap();
+                if input.is_empty() {
+                    app.command_input = None; // backspace on empty exits
+                } else {
+                    input.pop();
+                }
+            }
+            KeyCode::Tab => {
+                let playlist_names: Vec<String> = app.playlists
+                    .iter()
+                    .map(|p| p.favorite_name.clone())
+                    .collect();
+                let current = app.command_input.as_ref().unwrap().clone();
+                if let Some(ghost) = command::autocomplete(&current, &playlist_names) {
+                    if ghost.starts_with(" → ") {
+                        // contains-match ghost: replace query with full name
+                        let parts: Vec<&str> = current.splitn(2, ' ').collect();
+                        if parts.len() == 2 {
+                            let completed = format!("{} {}", parts[0], &ghost[" → ".len()..]);
+                            *app.command_input.as_mut().unwrap() = completed;
+                        }
+                    } else {
+                        app.command_input.as_mut().unwrap().push_str(&ghost);
+                    }
+                }
+            }
+            KeyCode::Enter => {
+                if let Some(input) = app.command_input.take() {
+                    execute_command(app, client, &input).await?;
+                }
+            }
+            KeyCode::Esc => {
+                app.command_input = None;
+            }
+            _ => {}
+        }
+        return Ok(());
+    }
+
     // Volume input mode intercepts all keys
     if app.volume_input.is_some() {
         match key.code {
@@ -195,6 +322,16 @@ async fn handle_key(app: &mut App, client: &ApiClient, key: KeyEvent) -> Result<
 
         KeyCode::Char('v') => {
             app.volume_input = Some(String::new());
+        }
+
+        KeyCode::Char(':') => {
+            app.command_input = Some(String::new());
+            app.volume_input = None; // mutually exclusive
+        }
+        KeyCode::Esc => {
+            if app.help_open {
+                app.help_open = false;
+            }
         }
 
         _ => {}
