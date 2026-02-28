@@ -132,6 +132,25 @@ impl App {
                 .unwrap_or(false)
         })
     }
+
+    /// Returns all speakers whose coordinator is `coordinator_name`.
+    pub fn group_members_of<'a>(&'a self, coordinator_name: &str) -> Vec<&'a Speaker> {
+        self.speakers.iter().filter(|s| {
+            s.group_coordinator.as_deref() == Some(coordinator_name)
+        }).collect()
+    }
+
+    /// Returns speakers with no group_coordinator (truly ungrouped/solo).
+    pub fn solo_speakers(&self) -> Vec<&Speaker> {
+        self.speakers.iter().filter(|s| s.group_coordinator.is_none()).collect()
+    }
+
+    /// Returns coordinator speakers (group_coordinator == their own name).
+    pub fn coordinators(&self) -> Vec<&Speaker> {
+        self.speakers.iter().filter(|s| {
+            s.group_coordinator.as_deref() == Some(s.name.as_str())
+        }).collect()
+    }
 }
 
 #[cfg(test)]
@@ -223,5 +242,42 @@ mod tests {
         app.sleep_until = Some(std::time::Instant::now() + std::time::Duration::from_secs(90));
         let status = app.active_status();
         assert!(status.starts_with("Sleep: 1:"), "Expected 'Sleep: 1:xx remaining', got: {}", status);
+    }
+
+    #[test]
+    fn test_coordinators_returns_only_coordinators() {
+        let mut app = App::new();
+        app.speakers = vec![
+            make_speaker("cthulhu", Some("cthulhu")),
+            make_speaker("family", Some("cthulhu")),
+            make_speaker("hermit", None),
+        ];
+        let coords = app.coordinators();
+        assert_eq!(coords.len(), 1);
+        assert_eq!(coords[0].name, "cthulhu");
+    }
+
+    #[test]
+    fn test_solo_speakers_returns_ungrouped() {
+        let mut app = App::new();
+        app.speakers = vec![
+            make_speaker("cthulhu", Some("cthulhu")),
+            make_speaker("hermit", None),
+        ];
+        let solos = app.solo_speakers();
+        assert_eq!(solos.len(), 1);
+        assert_eq!(solos[0].name, "hermit");
+    }
+
+    #[test]
+    fn test_group_members_of_returns_all_members() {
+        let mut app = App::new();
+        app.speakers = vec![
+            make_speaker("cthulhu", Some("cthulhu")),
+            make_speaker("family", Some("cthulhu")),
+            make_speaker("hermit", None),
+        ];
+        let members = app.group_members_of("cthulhu");
+        assert_eq!(members.len(), 2);
     }
 }

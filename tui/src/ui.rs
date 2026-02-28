@@ -57,28 +57,32 @@ fn draw_speakers(f: &mut Frame, app: &App, area: Rect) {
     let active = app.active_panel == Panel::Speakers;
     let block = panel_block("Speakers", active);
 
+    if app.is_grouped() {
+        draw_topology(f, app, block, area);
+    } else {
+        draw_speaker_list(f, app, block, area);
+    }
+}
+
+fn draw_speaker_list(f: &mut Frame, app: &App, block: Block, area: Rect) {
+    let active = app.active_panel == Panel::Speakers;
     let items: Vec<ListItem> = app.speakers.iter().enumerate().map(|(i, sp)| {
         let state_icon = match sp.state.as_str() {
             "PLAYING" => Span::styled("▶", Style::default().fg(PLAYING)),
             "PAUSED_PLAYBACK" => Span::styled("⏸", Style::default().fg(PAUSED)),
             _ => Span::styled("·", Style::default().fg(DIM)),
         };
-
         let display_name = sp.alias.as_deref().unwrap_or(&sp.name);
         let name_style = if i == app.speaker_index && active {
             Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(FG)
         };
-
         let group_tag = match &sp.group_coordinator {
             None => Span::raw("  "),
-            Some(coord) if coord == &sp.name => {
-                Span::styled(" ◈", Style::default().fg(ACCENT))
-            }
+            Some(coord) if coord == &sp.name => Span::styled(" ◈", Style::default().fg(ACCENT)),
             Some(_) => Span::styled(" ↳", Style::default().fg(DIM)),
         };
-
         let line = Line::from(vec![
             Span::raw(if i == app.speaker_index { " ► " } else { "   " }),
             Span::styled(format!("{:<14}", display_name), name_style),
@@ -87,16 +91,80 @@ fn draw_speakers(f: &mut Frame, app: &App, area: Rect) {
             Span::raw("  "),
             state_icon,
         ]);
-
         let mut item = ListItem::new(line);
         if i == app.speaker_index && active {
             item = item.style(Style::default().bg(HIGHLIGHT_BG));
         }
         item
     }).collect();
-
     let list = List::new(items).block(block);
     f.render_widget(list, area);
+}
+
+fn draw_topology(f: &mut Frame, app: &App, block: Block<'_>, area: Rect) {
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let mut lines: Vec<Line> = vec![];
+
+    for coord in app.coordinators() {
+        let members = app.group_members_of(&coord.name);
+        let display = coord.alias.as_deref().unwrap_or(&coord.name);
+        let width = members.iter()
+            .map(|s| s.alias.as_deref().unwrap_or(&s.name).len())
+            .max()
+            .unwrap_or(display.len())
+            .max(display.len()) + 4;
+        let bar = "═".repeat(width);
+
+        lines.push(Line::from(Span::styled(
+            format!(" ╔{}╗", bar),
+            Style::default().fg(ACCENT),
+        )));
+        for m in &members {
+            let name = m.alias.as_deref().unwrap_or(&m.name);
+            let tag = if m.group_coordinator.as_deref() == Some(m.name.as_str()) {
+                " ◈"
+            } else {
+                " ↳"
+            };
+            let state = match m.state.as_str() {
+                "PLAYING" => "▶",
+                "PAUSED_PLAYBACK" => "⏸",
+                _ => "·",
+            };
+            lines.push(Line::from(vec![
+                Span::styled(" ║ ", Style::default().fg(ACCENT)),
+                Span::styled(format!("{:<width$}", name, width = width - 2), Style::default().fg(FG)),
+                Span::styled(tag, Style::default().fg(DIM)),
+                Span::raw(" "),
+                Span::styled(state, Style::default().fg(PLAYING)),
+                Span::styled(" ║", Style::default().fg(ACCENT)),
+            ]));
+        }
+        lines.push(Line::from(Span::styled(
+            format!(" ╚{}╝", bar),
+            Style::default().fg(ACCENT),
+        )));
+        lines.push(Line::from(""));
+    }
+
+    for sp in app.solo_speakers() {
+        let name = sp.alias.as_deref().unwrap_or(&sp.name);
+        let state = match sp.state.as_str() {
+            "PLAYING" => Span::styled("▶", Style::default().fg(PLAYING)),
+            "PAUSED_PLAYBACK" => Span::styled("⏸", Style::default().fg(PAUSED)),
+            _ => Span::styled("·", Style::default().fg(DIM)),
+        };
+        lines.push(Line::from(vec![
+            Span::styled(format!("   {} ", name), Style::default().fg(DIM)),
+            state,
+            Span::styled(" (solo)", Style::default().fg(DIM)),
+        ]));
+    }
+
+    let para = Paragraph::new(lines);
+    f.render_widget(para, inner);
 }
 
 fn draw_playlists(f: &mut Frame, app: &App, area: Rect) {
