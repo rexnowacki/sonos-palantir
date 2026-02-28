@@ -87,6 +87,10 @@ pub fn draw(f: &mut Frame, app: &App) {
     draw_now_playing(f, app, main[1]);
     draw_status_line(f, app, outer[1]);
     draw_help_bar(f, app, outer[2]);
+
+    if app.help_open {
+        draw_help_overlay(f);
+    }
 }
 
 fn panel_block(title: &str, active: bool) -> Block<'_> {
@@ -466,6 +470,8 @@ fn draw_help_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(" track  ", Style::default().fg(DIM)),
         Span::styled("g", Style::default().fg(ACCENT)),
         Span::styled(" group  ", Style::default().fg(DIM)),
+        Span::styled("?", Style::default().fg(ACCENT)),
+        Span::styled(" help  ", Style::default().fg(DIM)),
         Span::styled("q", Style::default().fg(ACCENT)),
         Span::styled(" quit", Style::default().fg(DIM)),
     ]);
@@ -476,6 +482,51 @@ fn draw_help_bar(f: &mut Frame, app: &App, area: Rect) {
         .style(Style::default().bg(BG));
     let paragraph = Paragraph::new(help).block(block);
     f.render_widget(paragraph, area);
+}
+
+fn draw_help_overlay(f: &mut Frame) {
+    let area = f.area();
+    let block = Block::default()
+        .title(" ? The Lore of sono-palantir — Esc or ? to close ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(ACCENT))
+        .style(Style::default().bg(BG));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let lines: Vec<Line> = vec![
+        Line::from(""),
+        Line::from(vec![Span::styled("  NAVIGATION", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))]),
+        Line::from(vec![Span::styled("  Tab        ", Style::default().fg(ACCENT)), Span::styled("Cycle panels — as the Fellowship moved between realms", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  ↑ / k      ", Style::default().fg(ACCENT)), Span::styled("Move up", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  ↓ / j      ", Style::default().fg(ACCENT)), Span::styled("Move down", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  Enter      ", Style::default().fg(ACCENT)), Span::styled("Play selected playlist on selected speaker", Style::default().fg(FG))]),
+        Line::from(""),
+        Line::from(vec![Span::styled("  PLAYBACK", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))]),
+        Line::from(vec![Span::styled("  Space      ", Style::default().fg(ACCENT)), Span::styled("Pause / resume — even hobbits need rest", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  n          ", Style::default().fg(ACCENT)), Span::styled("Next track — onwards, to Rivendell", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  p          ", Style::default().fg(ACCENT)), Span::styled("Previous track — back to the Shire", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  + / =      ", Style::default().fg(ACCENT)), Span::styled("Volume up 5", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  -          ", Style::default().fg(ACCENT)), Span::styled("Volume down 5", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  v          ", Style::default().fg(ACCENT)), Span::styled("Set exact volume — speak your will", Style::default().fg(FG))]),
+        Line::from(""),
+        Line::from(vec![Span::styled("  GROUPS", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))]),
+        Line::from(vec![Span::styled("  g          ", Style::default().fg(ACCENT)), Span::styled("Toggle group all speakers — assemble the Fellowship", Style::default().fg(FG))]),
+        Line::from(""),
+        Line::from(vec![Span::styled("  COMMAND MODE  (press : to enter)", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))]),
+        Line::from(vec![Span::styled("  :play <name> ", Style::default().fg(ACCENT)), Span::styled("Play a favorite — fuzzy matched", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  :vol <0-100> ", Style::default().fg(ACCENT)), Span::styled("Set exact volume", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  :group all   ", Style::default().fg(ACCENT)), Span::styled("Group all speakers", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  :sleep <min> ", Style::default().fg(ACCENT)), Span::styled("Sleep timer — pause all after N minutes", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  :reload      ", Style::default().fg(ACCENT)), Span::styled("Reload config — a wizard is never stale", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  Tab          ", Style::default().fg(ACCENT)), Span::styled("Accept ghost text autocomplete suggestion", Style::default().fg(FG))]),
+        Line::from(""),
+        Line::from(vec![Span::styled("  ?            ", Style::default().fg(ACCENT)), Span::styled("Toggle this help screen", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  q            ", Style::default().fg(ACCENT)), Span::styled("Quit — go back to the Shire", Style::default().fg(FG))]),
+    ];
+
+    let para = Paragraph::new(lines);
+    f.render_widget(para, inner);
 }
 
 fn format_time(seconds: u64) -> String {

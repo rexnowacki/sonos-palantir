@@ -350,6 +350,9 @@ async fn handle_key(app: &mut App, client: &ApiClient, key: KeyEvent) -> Result<
             app.command_input = Some(String::new());
             app.volume_input = None; // mutually exclusive
         }
+        KeyCode::Char('?') => {
+            app.help_open = !app.help_open;
+        }
         KeyCode::Esc => {
             if app.help_open {
                 app.help_open = false;
