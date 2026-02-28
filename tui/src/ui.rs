@@ -66,9 +66,18 @@ fn draw_speakers(f: &mut Frame, app: &App, area: Rect) {
             Style::default().fg(FG)
         };
 
+        let group_tag = match &sp.group_coordinator {
+            None => Span::raw("  "),
+            Some(coord) if coord == &sp.name => {
+                Span::styled(" ◈", Style::default().fg(ACCENT))
+            }
+            Some(_) => Span::styled(" ↳", Style::default().fg(DIM)),
+        };
+
         let line = Line::from(vec![
             Span::raw(if i == app.speaker_index { " ► " } else { "   " }),
-            Span::styled(format!("{:<16}", display_name), name_style),
+            Span::styled(format!("{:<14}", display_name), name_style),
+            group_tag,
             Span::styled(format!(" {:>3}", sp.volume), Style::default().fg(DIM)),
             Span::raw("  "),
             state_icon,
