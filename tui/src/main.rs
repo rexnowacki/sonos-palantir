@@ -43,6 +43,20 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Resu
     if let Ok(playlists) = client.get_playlists().await {
         app.playlists = playlists;
     }
+    if let Ok(favs) = client.get_favorites().await {
+        let existing: std::collections::HashSet<String> = app.playlists
+            .iter()
+            .map(|p| p.favorite_name.to_lowercase())
+            .collect();
+        for title in favs {
+            if !existing.contains(&title.to_lowercase()) {
+                app.playlists.push(crate::api::Playlist {
+                    alias: title.clone(),
+                    favorite_name: title,
+                });
+            }
+        }
+    }
 
     // Background refresh — never blocks the event loop
     let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<Speaker>>(1);

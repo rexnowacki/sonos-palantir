@@ -116,3 +116,14 @@ def test_previous_track_upnp_error_returns_422():
     mock_speaker.previous.side_effect = SoCoUPnPException("UPnP Error 800", error_code=800, error_xml="")
     resp = client.post("/previous", json={"speaker": "cthulhu"})
     assert resp.status_code == 422
+
+
+def test_get_favorites():
+    client, mock_manager, mock_speaker = _make_client()
+    mock_fav = MagicMock()
+    mock_fav.title = "Jazz Classics"
+    mock_speaker.music_library.get_sonos_favorites.return_value = [mock_fav]
+    resp = client.get("/favorites")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert any(f["title"] == "Jazz Classics" for f in data["favorites"])

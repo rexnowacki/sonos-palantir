@@ -80,6 +80,20 @@ impl ApiClient {
         }).collect())
     }
 
+    pub async fn get_favorites(&self) -> anyhow::Result<Vec<String>> {
+        let resp: serde_json::Value = self.client
+            .get(format!("{}/favorites", self.base_url))
+            .send().await?
+            .json().await?;
+        let favs = resp["favorites"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        Ok(favs.iter()
+            .filter_map(|f| f["title"].as_str().map(|s| s.to_string()))
+            .collect())
+    }
+
     pub async fn play(&self, speaker: &str, playlist: &str) -> anyhow::Result<()> {
         self.client.post(format!("{}/play", self.base_url))
             .json(&PlayRequest {
