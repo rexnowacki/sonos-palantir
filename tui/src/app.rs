@@ -280,4 +280,24 @@ mod tests {
         let members = app.group_members_of("cthulhu");
         assert_eq!(members.len(), 2);
     }
+
+    #[test]
+    fn test_group_members_of_returns_empty_for_unknown_coordinator() {
+        let mut app = App::new();
+        app.speakers = vec![
+            make_speaker("cthulhu", Some("cthulhu")),
+        ];
+        let members = app.group_members_of("nobody");
+        assert!(members.is_empty());
+    }
+
+    #[test]
+    fn test_solo_speakers_empty_when_all_grouped() {
+        let mut app = App::new();
+        app.speakers = vec![
+            make_speaker("cthulhu", Some("cthulhu")),
+            make_speaker("family", Some("cthulhu")),
+        ];
+        assert!(app.solo_speakers().is_empty());
+    }
 }

@@ -108,14 +108,15 @@ fn draw_topology(f: &mut Frame, app: &App, block: Block<'_>, area: Rect) {
     let mut lines: Vec<Line> = vec![];
 
     for coord in app.coordinators() {
-        let members = app.group_members_of(&coord.name);
         let display = coord.alias.as_deref().unwrap_or(&coord.name);
-        let width = members.iter()
+        let members = app.group_members_of(&coord.name);
+        let max_name_len = members.iter()
             .map(|s| s.alias.as_deref().unwrap_or(&s.name).len())
             .max()
-            .unwrap_or(display.len())
-            .max(display.len()) + 4;
-        let bar = "═".repeat(width);
+            .unwrap_or(0)
+            .max(display.len());
+        // bar width = max_name_len + 4 (tag + space + state) + 2 (║ inner padding) = +6
+        let bar = "═".repeat(max_name_len + 6);
 
         lines.push(Line::from(Span::styled(
             format!(" ╔{}╗", bar),
@@ -128,17 +129,17 @@ fn draw_topology(f: &mut Frame, app: &App, block: Block<'_>, area: Rect) {
             } else {
                 " ↳"
             };
-            let state = match m.state.as_str() {
-                "PLAYING" => "▶",
-                "PAUSED_PLAYBACK" => "⏸",
-                _ => "·",
+            let (state_str, state_color) = match m.state.as_str() {
+                "PLAYING"          => ("▶", PLAYING),
+                "PAUSED_PLAYBACK"  => ("⏸", PAUSED),
+                _                  => ("·", DIM),
             };
             lines.push(Line::from(vec![
                 Span::styled(" ║ ", Style::default().fg(ACCENT)),
-                Span::styled(format!("{:<width$}", name, width = width - 2), Style::default().fg(FG)),
+                Span::styled(format!("{:<width$}", name, width = max_name_len), Style::default().fg(FG)),
                 Span::styled(tag, Style::default().fg(DIM)),
                 Span::raw(" "),
-                Span::styled(state, Style::default().fg(PLAYING)),
+                Span::styled(state_str, Style::default().fg(state_color)),
                 Span::styled(" ║", Style::default().fg(ACCENT)),
             ]));
         }
