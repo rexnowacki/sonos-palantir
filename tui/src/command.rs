@@ -72,7 +72,14 @@ pub fn autocomplete(input: &str, playlist_names: &[String]) -> Option<String> {
         let q = query.to_lowercase();
         if let Some(m) = playlist_names.iter().find(|n| n.to_lowercase().starts_with(&q)) {
             if m.to_lowercase() != q {
-                return Some(m[query.len()..].to_string());
+                // Use char-count from the lowercased query to find the safe byte boundary
+                // in the original-case string m, avoiding byte-offset panics on non-ASCII
+                let prefix_byte_len: usize = m.chars()
+                    .zip(m.to_lowercase().chars())
+                    .take(q.chars().count())
+                    .map(|(orig_c, _)| orig_c.len_utf8())
+                    .sum();
+                return Some(m[prefix_byte_len..].to_string());
             }
         }
         // fallback: contains match
@@ -152,5 +159,28 @@ mod tests {
     #[test]
     fn test_autocomplete_empty_input() {
         assert_eq!(autocomplete("", &[]), None);
+    }
+
+    #[test]
+    fn test_parse_vol_no_arg_returns_none() {
+        assert_eq!(parse("vol"), None);
+    }
+
+    #[test]
+    fn test_parse_group_no_arg_returns_unknown() {
+        assert!(matches!(parse("group"), Some(Command::Unknown(_))));
+    }
+
+    #[test]
+    fn test_parse_play_alias_p() {
+        assert_eq!(parse("p altwave"), Some(Command::Play("altwave".to_string())));
+    }
+
+    #[test]
+    fn test_autocomplete_p_alias_plays_fuzzy() {
+        let names = vec!["Alt Wave".to_string()];
+        let result = autocomplete("p alt", &names);
+        // "p alt" has a space so it enters the play-fuzzy path
+        assert_eq!(result, Some(" Wave".to_string()));
     }
 }
