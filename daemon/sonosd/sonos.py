@@ -146,7 +146,7 @@ class SonosManager:
                 # Streaming service containers (e.g. Spotify playlists) can't be played
                 # directly via SetAVTransportURI — use the queue mechanism instead.
                 speaker.clear_queue()
-                speaker.add_uri_to_queue(uri, meta, position=0)
+                speaker.add_to_queue(match.reference)
                 speaker.play_from_queue(0)
             else:
                 raise
