@@ -1,7 +1,8 @@
 #[derive(Debug, PartialEq)]
 pub enum Command {
     Play(String),
-    Volume(u8),
+    /// (optional speaker alias/"all", volume 0-100)
+    Volume(Option<String>, u8),
     GroupAll,
     Ungroup,
     Next,
@@ -24,7 +25,16 @@ pub fn parse(input: &str) -> Option<Command> {
 
     match cmd {
         "play" | "p" => Some(Command::Play(rest.to_string())),
-        "vol" | "volume" => rest.parse::<u8>().ok().map(Command::Volume),
+        "vol" | "volume" => {
+            // "vol 30"  OR  "vol cthulhu 30"  OR  "vol all 30"
+            if let Ok(v) = rest.parse::<u8>() {
+                Some(Command::Volume(None, v))
+            } else if let Some((name, num_str)) = rest.split_once(' ') {
+                num_str.parse::<u8>().ok().map(|v| Command::Volume(Some(name.to_string()), v))
+            } else {
+                None
+            }
+        }
         "group" => {
             if rest == "all" {
                 Some(Command::GroupAll)
@@ -101,7 +111,17 @@ mod tests {
 
     #[test]
     fn test_parse_volume() {
-        assert_eq!(parse("vol 40"), Some(Command::Volume(40)));
+        assert_eq!(parse("vol 40"), Some(Command::Volume(None, 40)));
+    }
+
+    #[test]
+    fn test_parse_volume_with_speaker() {
+        assert_eq!(parse("vol cthulhu 30"), Some(Command::Volume(Some("cthulhu".to_string()), 30)));
+    }
+
+    #[test]
+    fn test_parse_volume_all() {
+        assert_eq!(parse("vol all 30"), Some(Command::Volume(Some("all".to_string()), 30)));
     }
 
     #[test]

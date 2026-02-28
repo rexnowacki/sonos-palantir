@@ -135,21 +135,34 @@ async fn execute_command(app: &mut App, client: &ApiClient, input: &str) -> Resu
                 }
             }
         }
-        Some(Command::Volume(v)) => {
-            if let Some(id) = app.speaker_id() {
-                let _ = client.set_volume(&id, v).await;
-                // Immediately reflect in local state — don't wait for the 2s background poll
+        Some(Command::Volume(target, v)) => {
+            let ids: Vec<String> = match target.as_deref() {
+                None => app.speaker_id().into_iter().collect(),
+                Some("all") => app.speakers.iter()
+                    .map(|s| s.alias.as_deref().unwrap_or(&s.name).to_string())
+                    .collect(),
+                Some(name) => vec![name.to_string()],
+            };
+            if !ids.is_empty() {
+                for id in &ids {
+                    let _ = client.set_volume(id, v).await;
+                }
                 for sp in &mut app.speakers {
-                    if sp.alias.as_deref().unwrap_or(&sp.name) == id {
+                    let sp_id = sp.alias.as_deref().unwrap_or(&sp.name).to_string();
+                    if ids.contains(&sp_id) {
                         sp.volume = v;
-                        break;
                     }
                 }
-                if v == 100 {
-                    app.set_status("You shall not pass... 100.", 3);
+                let status = if v == 100 {
+                    "You shall not pass... 100.".to_string()
                 } else {
-                    app.set_status(format!("Volume set to {}.", v), 2);
-                }
+                    match target.as_deref() {
+                        None => format!("Volume set to {}.", v),
+                        Some("all") => format!("Volume set to {} on all speakers.", v),
+                        Some(name) => format!("Volume set to {} on {}.", v, name),
+                    }
+                };
+                app.set_status(status, 2);
             }
         }
         Some(Command::GroupAll) => {
