@@ -1,6 +1,7 @@
 import soco
 import threading
 import time
+from pathlib import Path
 from typing import Optional
 
 _REDISCOVER_INTERVAL = 30  # seconds between background UPnP sweeps
@@ -16,6 +17,9 @@ class SonosManager:
         self._alias_map: dict[str, str] = config.get("speakers", {})
         self._reverse_alias: dict[str, str] = {v: k for k, v in self._alias_map.items()}
         self._playlist_map: dict[str, str] = config.get("playlists", {})
+        self._config_path = Path(__file__).parent.parent / "config.yaml"
+        self._config_mtime: float = self._config_path.stat().st_mtime
+        self._last_config_check: float = 0.0
         self._discover()
         t = threading.Thread(target=self._background_discover, daemon=True)
         t.start()
@@ -31,6 +35,10 @@ class SonosManager:
         while True:
             time.sleep(_REDISCOVER_INTERVAL)
             self._discover()
+            now = time.time()
+            if now - self._last_config_check >= 300:
+                self._last_config_check = now
+                self._check_config_reload()
 
     def refresh(self) -> None:
         """Explicit re-discovery (startup / manual trigger)."""
@@ -142,6 +150,31 @@ class SonosManager:
                 sp.unjoin()
         else:
             self.get_speaker(name_or_alias).unjoin()
+
+    def _check_config_reload(self) -> None:
+        """Reload config.yaml if it has changed on disk."""
+        try:
+            mtime = self._config_path.stat().st_mtime
+            if mtime != self._config_mtime:
+                self.reload_config()
+        except OSError:
+            pass
+
+    def reload_config(self) -> None:
+        """Re-read config.yaml and update alias/playlist maps."""
+        import yaml
+        with open(self._config_path) as f:
+            config = yaml.safe_load(f)
+        with self._lock:
+            self.config = config
+            self._alias_map = config.get("speakers", {})
+            self._reverse_alias = {v: k for k, v in self._alias_map.items()}
+            self._playlist_map = config.get("playlists", {})
+            self._config_mtime = self._config_path.stat().st_mtime
+
+    def get_playlists_map(self) -> dict:
+        with self._lock:
+            return dict(self._playlist_map)
 
 
 def _parse_duration(time_str: str) -> int:

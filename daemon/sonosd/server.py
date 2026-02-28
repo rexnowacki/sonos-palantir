@@ -59,7 +59,13 @@ def get_favorites():
 
 @app.get("/playlists")
 def get_playlists():
-    return {"playlists": manager._playlist_map}
+    return {"playlists": manager.get_playlists_map()}
+
+
+@app.post("/reload")
+def reload_config():
+    manager.reload_config()
+    return {"status": "reloaded"}
 
 
 @app.get("/config")

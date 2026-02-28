@@ -163,3 +163,12 @@ def test_get_speaker_info_coordinator_does_not_double_fetch():
 
     mock_speaker.get_current_track_info.assert_called_once()
     assert info["track"]["title"] == "Coordinator Track"
+
+
+def test_get_playlists_map_returns_copy():
+    manager, _ = _make_manager()
+    result = manager.get_playlists_map()
+    assert isinstance(result, dict)
+    # modifying the returned dict should not affect internal state
+    result["injected"] = "value"
+    assert "injected" not in manager.get_playlists_map()

@@ -43,6 +43,7 @@ def _make_client():
         },
     }
     mock_manager._playlist_map = {"altwave": "Alt Wave"}
+    mock_manager.get_playlists_map.return_value = {"altwave": "Alt Wave"}
     mock_manager.get_speaker.return_value = mock_speaker
     mock_manager.get_coordinator.return_value = mock_speaker
 
@@ -134,3 +135,10 @@ def test_get_config_returns_playlist_sort():
     resp = client.get("/config")
     assert resp.status_code == 200
     assert "playlist_sort" in resp.json()
+
+
+def test_reload_endpoint_returns_200():
+    client, mock_manager, _ = _make_client()
+    resp = client.post("/reload")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "reloaded"
