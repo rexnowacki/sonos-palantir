@@ -227,6 +227,8 @@ fn draw_help_bar(f: &mut Frame, area: Rect) {
         Span::styled(" vol  ", Style::default().fg(DIM)),
         Span::styled("n/p", Style::default().fg(ACCENT)),
         Span::styled(" track  ", Style::default().fg(DIM)),
+        Span::styled("g", Style::default().fg(ACCENT)),
+        Span::styled(" group  ", Style::default().fg(DIM)),
         Span::styled("q", Style::default().fg(ACCENT)),
         Span::styled(" quit", Style::default().fg(DIM)),
     ]);

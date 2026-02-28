@@ -122,6 +122,14 @@ async fn handle_key(app: &mut App, client: &ApiClient, key: KeyEvent) -> Result<
             }
         }
 
+        KeyCode::Char('g') => {
+            if app.is_grouped() {
+                let _ = client.ungroup_all().await;
+            } else {
+                let _ = client.group_all().await;
+            }
+        }
+
         _ => {}
     }
     Ok(())
