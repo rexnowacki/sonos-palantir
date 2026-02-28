@@ -223,10 +223,21 @@ fn draw_now_playing(f: &mut Frame, app: &App, area: Rect) {
 
     // Stacked view: divide inner area equally among entities
     let chunk_h = inner.height / entities.len() as u16;
+    if chunk_h == 0 {
+        // Terminal too small to stack — render only the first entity
+        draw_track_block(f, entities[0], inner, false);
+        return;
+    }
     for (i, sp) in entities.iter().enumerate() {
+        let is_last = i == entities.len() - 1;
+        let height = if is_last {
+            inner.height - chunk_h * (entities.len() as u16 - 1)
+        } else {
+            chunk_h
+        };
         let chunk = Rect {
             y: inner.y + i as u16 * chunk_h,
-            height: chunk_h,
+            height,
             ..inner
         };
         draw_track_block(f, sp, chunk, false);
@@ -234,6 +245,9 @@ fn draw_now_playing(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_track_block(f: &mut Frame, sp: &crate::api::Speaker, area: Rect, show_vol: bool) {
+    if area.height == 0 {
+        return;
+    }
     // Group/speaker label (dim)
     let label_area = Rect { y: area.y, height: 1, ..area };
     let label = Paragraph::new(Line::from(vec![
@@ -322,7 +336,7 @@ fn draw_track_block(f: &mut Frame, sp: &crate::api::Speaker, area: Rect, show_vo
             f.render_widget(
                 Gauge::default()
                     .gauge_style(Style::default().fg(PLAYING).bg(Color::Rgb(40, 40, 55)))
-                    .ratio(sp.volume as f64 / 100.0)
+                    .ratio((sp.volume as f64 / 100.0).min(1.0))
                     .label(format!("Vol: {}", sp.volume)),
                 vol_area,
             );

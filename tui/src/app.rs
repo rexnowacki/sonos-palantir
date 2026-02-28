@@ -333,4 +333,21 @@ mod tests {
         ];
         assert!(app.solo_speakers().is_empty());
     }
+
+    #[test]
+    fn test_playing_entities_empty_speakers() {
+        let app = App::new();
+        assert!(app.playing_entities().is_empty());
+    }
+
+    #[test]
+    fn test_playing_entities_all_followers_returns_empty() {
+        let mut app = App::new();
+        // Both speakers point to a coordinator "ghost" that isn't in the list
+        app.speakers = vec![
+            make_speaker("follower1", Some("ghost")),
+            make_speaker("follower2", Some("ghost")),
+        ];
+        assert!(app.playing_entities().is_empty());
+    }
 }
