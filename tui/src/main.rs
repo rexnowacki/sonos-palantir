@@ -27,6 +27,9 @@ async fn main() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
+    terminal.draw(|f| ui::draw_splash(f))?;
+    std::thread::sleep(std::time::Duration::from_secs(1));
+
     let result = run(&mut terminal).await;
 
     disable_raw_mode()?;

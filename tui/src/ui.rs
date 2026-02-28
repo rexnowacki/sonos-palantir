@@ -18,6 +18,50 @@ const HIGHLIGHT_BG: Color = Color::Rgb(40, 45, 65);
 const BORDER_ACTIVE: Color = ACCENT;
 const BORDER_INACTIVE: Color = Color::Rgb(50, 50, 70);
 
+pub fn draw_splash(f: &mut Frame) {
+    let area = f.area();
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(ACCENT))
+        .style(Style::default().bg(BG));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let v_offset = inner.height.saturating_sub(4) / 2;
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(v_offset),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Min(0),
+        ])
+        .split(inner);
+
+    f.render_widget(
+        Paragraph::new(Span::styled(
+            "S O N O - P A L A N T I R",
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        )).alignment(ratatui::layout::Alignment::Center),
+        chunks[1],
+    );
+    f.render_widget(
+        Paragraph::new(Span::styled(
+            "══════════════════════════",
+            Style::default().fg(ACCENT),
+        )).alignment(ratatui::layout::Alignment::Center),
+        chunks[2],
+    );
+    f.render_widget(
+        Paragraph::new(Span::styled(
+            "Seeing through sound...",
+            Style::default().fg(DIM),
+        )).alignment(ratatui::layout::Alignment::Center),
+        chunks[3],
+    );
+}
+
 pub fn draw(f: &mut Frame, app: &App) {
     let outer = Layout::default()
         .direction(Direction::Vertical)
