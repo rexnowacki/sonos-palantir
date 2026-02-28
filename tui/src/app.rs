@@ -151,6 +151,25 @@ impl App {
             s.group_coordinator.as_deref() == Some(s.name.as_str())
         }).collect()
     }
+
+    /// One entry per distinct group (represented by coordinator) + each solo speaker.
+    pub fn playing_entities(&self) -> Vec<&Speaker> {
+        let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        let mut result = vec![];
+        for sp in &self.speakers {
+            match &sp.group_coordinator {
+                Some(coord) if coord == &sp.name => {
+                    // coordinator — include once
+                    if seen.insert(coord.as_str()) {
+                        result.push(sp);
+                    }
+                }
+                None => result.push(sp), // ungrouped solo
+                _ => {}                  // follower — skip
+            }
+        }
+        result
+    }
 }
 
 #[cfg(test)]
@@ -289,6 +308,20 @@ mod tests {
         ];
         let members = app.group_members_of("nobody");
         assert!(members.is_empty());
+    }
+
+    #[test]
+    fn test_playing_entities_deduplicates_groups() {
+        let mut app = App::new();
+        app.speakers = vec![
+            make_speaker("cthulhu", Some("cthulhu")),  // coordinator
+            make_speaker("family", Some("cthulhu")),   // follower — skip
+            make_speaker("hermit", None),              // solo
+        ];
+        let entities = app.playing_entities();
+        assert_eq!(entities.len(), 2);
+        assert_eq!(entities[0].name, "cthulhu");
+        assert_eq!(entities[1].name, "hermit");
     }
 
     #[test]

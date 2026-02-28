@@ -205,95 +205,134 @@ fn draw_now_playing(f: &mut Frame, app: &App, area: Rect) {
     let inner = block.inner(area);
     f.render_widget(block, area);
 
-    let speaker = app.selected_speaker();
+    let entities = app.playing_entities();
 
-    if let Some(sp) = speaker {
-        if let Some(track) = &sp.track {
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Length(1),
-                    Constraint::Length(1),
-                    Constraint::Length(1),
-                    Constraint::Length(1),
-                    Constraint::Length(2),
-                    Constraint::Length(1),
-                    Constraint::Length(1),
-                    Constraint::Length(2),
-                    Constraint::Length(1),
-                    Constraint::Min(0),
-                ])
-                .split(inner);
-
-            let title = Paragraph::new(Line::from(vec![
-                Span::styled("  ♫ ", Style::default().fg(PLAYING)),
-                Span::styled(
-                    &track.title,
-                    Style::default().fg(FG).add_modifier(Modifier::BOLD),
-                ),
-            ]));
-            f.render_widget(title, chunks[1]);
-
-            let artist = Paragraph::new(Line::from(vec![
-                Span::raw("    "),
-                Span::styled(&track.artist, Style::default().fg(ACCENT)),
-            ]));
-            f.render_widget(artist, chunks[2]);
-
-            let album = Paragraph::new(Line::from(vec![
-                Span::raw("    "),
-                Span::styled(&track.album, Style::default().fg(DIM)),
-            ]));
-            f.render_widget(album, chunks[3]);
-
-            let ratio = if track.duration > 0 {
-                track.position as f64 / track.duration as f64
-            } else {
-                0.0
-            };
-            let gauge = Gauge::default()
-                .gauge_style(Style::default().fg(ACCENT).bg(Color::Rgb(40, 40, 55)))
-                .ratio(ratio)
-                .label("");
-            let gauge_area = Rect {
-                x: chunks[5].x + 4,
-                width: chunks[5].width.saturating_sub(8),
-                ..chunks[5]
-            };
-            f.render_widget(gauge, gauge_area);
-
-            let time_str = format!(
-                "    {}  /  {}",
-                format_time(track.position),
-                format_time(track.duration),
-            );
-            let time = Paragraph::new(Span::styled(time_str, Style::default().fg(DIM)));
-            f.render_widget(time, chunks[6]);
-
-            let vol_ratio = sp.volume as f64 / 100.0;
-            let vol_gauge = Gauge::default()
-                .gauge_style(Style::default().fg(PLAYING).bg(Color::Rgb(40, 40, 55)))
-                .ratio(vol_ratio)
-                .label(format!("Vol: {}", sp.volume));
-            let vol_area = Rect {
-                x: chunks[8].x + 4,
-                width: chunks[8].width.saturating_sub(8),
-                ..chunks[8]
-            };
-            f.render_widget(vol_gauge, vol_area);
-
-            return;
-        }
+    if entities.is_empty() {
+        let idle = Paragraph::new(vec![
+            Line::from(""),
+            Line::from(Span::styled("  Nothing playing", Style::default().fg(DIM))),
+        ]);
+        f.render_widget(idle, inner);
+        return;
     }
 
-    let idle = Paragraph::new(vec![
-        Line::from(""),
-        Line::from(Span::styled(
-            "  Nothing playing",
+    if entities.len() == 1 {
+        draw_track_block(f, entities[0], inner, true);
+        return;
+    }
+
+    // Stacked view: divide inner area equally among entities
+    let chunk_h = inner.height / entities.len() as u16;
+    for (i, sp) in entities.iter().enumerate() {
+        let chunk = Rect {
+            y: inner.y + i as u16 * chunk_h,
+            height: chunk_h,
+            ..inner
+        };
+        draw_track_block(f, sp, chunk, false);
+    }
+}
+
+fn draw_track_block(f: &mut Frame, sp: &crate::api::Speaker, area: Rect, show_vol: bool) {
+    // Group/speaker label (dim)
+    let label_area = Rect { y: area.y, height: 1, ..area };
+    let label = Paragraph::new(Line::from(vec![
+        Span::styled(
+            format!("  {} ", sp.alias.as_deref().unwrap_or(&sp.name)),
             Style::default().fg(DIM),
-        )),
-    ]);
-    f.render_widget(idle, inner);
+        ),
+    ]));
+    f.render_widget(label, label_area);
+
+    let content_area = Rect {
+        y: area.y + 1,
+        height: area.height.saturating_sub(1),
+        ..area
+    };
+
+    if let Some(track) = &sp.track {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(1), // title
+                Constraint::Length(1), // artist
+                Constraint::Length(1), // album
+                Constraint::Length(1), // spacer
+                Constraint::Length(1), // progress bar
+                Constraint::Length(1), // time
+                Constraint::Length(1), // spacer
+                Constraint::Length(1), // volume (optional)
+                Constraint::Min(0),
+            ])
+            .split(content_area);
+
+        f.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::styled("  ♫ ", Style::default().fg(PLAYING)),
+                Span::styled(&track.title, Style::default().fg(FG).add_modifier(Modifier::BOLD)),
+            ])),
+            chunks[0],
+        );
+        f.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::raw("    "),
+                Span::styled(&track.artist, Style::default().fg(ACCENT)),
+            ])),
+            chunks[1],
+        );
+        f.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::raw("    "),
+                Span::styled(&track.album, Style::default().fg(DIM)),
+            ])),
+            chunks[2],
+        );
+
+        let ratio = if track.duration > 0 {
+            (track.position as f64 / track.duration as f64).min(1.0)
+        } else {
+            0.0
+        };
+        let gauge_area = Rect {
+            x: chunks[4].x + 4,
+            width: chunks[4].width.saturating_sub(8),
+            ..chunks[4]
+        };
+        f.render_widget(
+            Gauge::default()
+                .gauge_style(Style::default().fg(ACCENT).bg(Color::Rgb(40, 40, 55)))
+                .ratio(ratio)
+                .label(""),
+            gauge_area,
+        );
+        f.render_widget(
+            Paragraph::new(Span::styled(
+                format!("    {} / {}", format_time(track.position), format_time(track.duration)),
+                Style::default().fg(DIM),
+            )),
+            chunks[5],
+        );
+
+        if show_vol {
+            let vol_area = Rect {
+                x: chunks[7].x + 4,
+                width: chunks[7].width.saturating_sub(8),
+                ..chunks[7]
+            };
+            f.render_widget(
+                Gauge::default()
+                    .gauge_style(Style::default().fg(PLAYING).bg(Color::Rgb(40, 40, 55)))
+                    .ratio(sp.volume as f64 / 100.0)
+                    .label(format!("Vol: {}", sp.volume)),
+                vol_area,
+            );
+        }
+    } else {
+        f.render_widget(
+            Paragraph::new(Span::styled("  Nothing playing", Style::default().fg(DIM))),
+            content_area,
+        );
+    }
 }
 
 fn draw_status_line(f: &mut Frame, app: &App, area: Rect) {
