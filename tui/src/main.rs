@@ -175,14 +175,18 @@ async fn execute_command(app: &mut App, client: &ApiClient, input: &str) -> Resu
         }
         Some(Command::Next) => {
             if let Some(id) = app.speaker_id() {
-                let _ = client.next(&id).await;
-                app.set_status("Onward, into shadow.", 2);
+                match client.next(&id).await {
+                    Ok(()) => app.set_status("Onward, into shadow.", 2),
+                    Err(_) => app.set_status("The road goes ever on — but not to the next track.", 3),
+                }
             }
         }
         Some(Command::Prev) => {
             if let Some(id) = app.speaker_id() {
-                let _ = client.previous(&id).await;
-                app.set_status("Back to the beginning.", 2);
+                match client.previous(&id).await {
+                    Ok(()) => app.set_status("Back to the beginning.", 2),
+                    Err(_) => app.set_status("The road goes ever on — but not to the previous track.", 3),
+                }
             }
         }
         Some(Command::Sleep(mins)) => {
@@ -345,12 +349,18 @@ async fn handle_key(app: &mut App, client: &ApiClient, key: KeyEvent) -> Result<
 
         KeyCode::Char('n') => {
             if let Some(id) = app.speaker_id() {
-                let _ = client.next(&id).await;
+                match client.next(&id).await {
+                    Ok(()) => app.set_status("Onward, into shadow.", 2),
+                    Err(_) => app.set_status("The road goes ever on — but not to the next track.", 3),
+                }
             }
         }
         KeyCode::Char('p') => {
             if let Some(id) = app.speaker_id() {
-                let _ = client.previous(&id).await;
+                match client.previous(&id).await {
+                    Ok(()) => app.set_status("Back to the beginning.", 2),
+                    Err(_) => app.set_status("The road goes ever on — but not to the previous track.", 3),
+                }
             }
         }
 

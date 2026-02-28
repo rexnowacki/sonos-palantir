@@ -139,14 +139,16 @@ impl ApiClient {
     pub async fn next(&self, speaker: &str) -> anyhow::Result<()> {
         self.client.post(format!("{}/next", self.base_url))
             .json(&SpeakerRequest { speaker: speaker.to_string() })
-            .send().await?;
+            .send().await?
+            .error_for_status()?;
         Ok(())
     }
 
     pub async fn previous(&self, speaker: &str) -> anyhow::Result<()> {
         self.client.post(format!("{}/previous", self.base_url))
             .json(&SpeakerRequest { speaker: speaker.to_string() })
-            .send().await?;
+            .send().await?
+            .error_for_status()?;
         Ok(())
     }
 
