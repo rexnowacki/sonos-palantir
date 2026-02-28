@@ -93,6 +93,37 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Resu
 }
 
 async fn handle_key(app: &mut App, client: &ApiClient, key: KeyEvent) -> Result<()> {
+    // Volume input mode intercepts all keys
+    if app.volume_input.is_some() {
+        match key.code {
+            KeyCode::Char(c) if c.is_ascii_digit() => {
+                let input = app.volume_input.as_mut().unwrap();
+                if input.len() < 3 {
+                    input.push(c);
+                }
+            }
+            KeyCode::Backspace => {
+                app.volume_input.as_mut().unwrap().pop();
+            }
+            KeyCode::Enter => {
+                if let Some(input) = app.volume_input.take() {
+                    // Empty or non-numeric input silently cancels (same as Esc)
+                    if let Ok(vol) = input.parse::<u8>() {
+                        let vol = vol.min(100);
+                        if let Some(id) = app.speaker_id() {
+                            let _ = client.set_volume(&id, vol).await;
+                        }
+                    }
+                }
+            }
+            KeyCode::Esc => {
+                app.volume_input = None;
+            }
+            _ => {}
+        }
+        return Ok(());
+    }
+
     match key.code {
         KeyCode::Char('q') => app.should_quit = true,
         KeyCode::Tab => app.cycle_panel(),
@@ -153,6 +184,10 @@ async fn handle_key(app: &mut App, client: &ApiClient, key: KeyEvent) -> Result<
             } else {
                 let _ = client.group_all().await;
             }
+        }
+
+        KeyCode::Char('v') => {
+            app.volume_input = Some(String::new());
         }
 
         _ => {}

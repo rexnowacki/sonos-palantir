@@ -15,6 +15,7 @@ pub struct App {
     pub playlist_index: usize,
     pub should_quit: bool,
     pub status_message: Option<String>,
+    pub volume_input: Option<String>,
 }
 
 impl App {
@@ -27,6 +28,7 @@ impl App {
             playlist_index: 0,
             should_quit: false,
             status_message: None,
+            volume_input: None,
         }
     }
 
@@ -146,5 +148,18 @@ mod tests {
             make_speaker("cthulhu", None),
         ];
         assert!(!app.is_grouped());
+    }
+
+    #[test]
+    fn test_volume_input_starts_none() {
+        let app = App::new();
+        assert!(app.volume_input.is_none());
+    }
+
+    #[test]
+    fn test_volume_input_can_be_set() {
+        let mut app = App::new();
+        app.volume_input = Some(String::from("42"));
+        assert_eq!(app.volume_input.as_deref(), Some("42"));
     }
 }

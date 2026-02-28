@@ -36,7 +36,7 @@ pub fn draw(f: &mut Frame, app: &App) {
     draw_speakers(f, app, left[0]);
     draw_playlists(f, app, left[1]);
     draw_now_playing(f, app, main[1]);
-    draw_help_bar(f, outer[1]);
+    draw_help_bar(f, app, outer[1]);
 }
 
 fn panel_block(title: &str, active: bool) -> Block<'_> {
@@ -222,7 +222,24 @@ fn draw_now_playing(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(idle, inner);
 }
 
-fn draw_help_bar(f: &mut Frame, area: Rect) {
+fn draw_help_bar(f: &mut Frame, app: &App, area: Rect) {
+    if let Some(input) = &app.volume_input {
+        let prompt = Line::from(vec![
+            Span::styled("  Vol: ", Style::default().fg(ACCENT)),
+            Span::styled(
+                format!("[{}▌]", input),
+                Style::default().fg(FG).add_modifier(Modifier::BOLD),
+            ),
+            Span::styled("   Enter confirm   Esc cancel", Style::default().fg(DIM)),
+        ]);
+        let block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(ACCENT))
+            .style(Style::default().bg(BG));
+        f.render_widget(Paragraph::new(prompt).block(block), area);
+        return;
+    }
+
     let help = Line::from(vec![
         Span::styled(" Tab", Style::default().fg(ACCENT)),
         Span::styled(" panel  ", Style::default().fg(DIM)),
@@ -234,6 +251,8 @@ fn draw_help_bar(f: &mut Frame, area: Rect) {
         Span::styled(" pause  ", Style::default().fg(DIM)),
         Span::styled("+/-", Style::default().fg(ACCENT)),
         Span::styled(" vol  ", Style::default().fg(DIM)),
+        Span::styled("v", Style::default().fg(ACCENT)),
+        Span::styled(" vol#  ", Style::default().fg(DIM)),
         Span::styled("n/p", Style::default().fg(ACCENT)),
         Span::styled(" track  ", Style::default().fg(DIM)),
         Span::styled("g", Style::default().fg(ACCENT)),
