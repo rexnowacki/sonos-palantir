@@ -83,7 +83,7 @@ def pause(req: SpeakerRequest):
             for sp in manager.get_all_speakers().values():
                 sp.pause()
         else:
-            manager.get_speaker(req.speaker).pause()
+            manager.get_coordinator(req.speaker).pause()
         return {"status": "paused"}
     except KeyError as e:
         raise HTTPException(404, str(e))
@@ -96,7 +96,7 @@ def resume(req: SpeakerRequest):
             for sp in manager.get_all_speakers().values():
                 sp.play()
         else:
-            manager.get_speaker(req.speaker).play()
+            manager.get_coordinator(req.speaker).play()
         return {"status": "resumed"}
     except KeyError as e:
         raise HTTPException(404, str(e))
@@ -109,7 +109,7 @@ def stop(req: SpeakerRequest):
             for sp in manager.get_all_speakers().values():
                 sp.stop()
         else:
-            manager.get_speaker(req.speaker).stop()
+            manager.get_coordinator(req.speaker).stop()
         return {"status": "stopped"}
     except KeyError as e:
         raise HTTPException(404, str(e))
@@ -147,7 +147,7 @@ def ungroup(req: SpeakerRequest):
 @app.post("/next")
 def next_track(req: SpeakerRequest):
     try:
-        manager.get_speaker(req.speaker).next()
+        manager.get_coordinator(req.speaker).next()
         return {"status": "ok"}
     except KeyError as e:
         raise HTTPException(404, str(e))
@@ -158,7 +158,7 @@ def next_track(req: SpeakerRequest):
 @app.post("/previous")
 def prev_track(req: SpeakerRequest):
     try:
-        manager.get_speaker(req.speaker).previous()
+        manager.get_coordinator(req.speaker).previous()
         return {"status": "ok"}
     except KeyError as e:
         raise HTTPException(404, str(e))

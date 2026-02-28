@@ -44,6 +44,7 @@ def _make_client():
     }
     mock_manager._playlist_map = {"altwave": "Alt Wave"}
     mock_manager.get_speaker.return_value = mock_speaker
+    mock_manager.get_coordinator.return_value = mock_speaker
 
     import sonosd.server as server_module
     server_module.manager = mock_manager

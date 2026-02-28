@@ -29,6 +29,13 @@ class SonosManager:
     def get_all_speakers(self) -> dict[str, soco.SoCo]:
         return self._speakers
 
+    def get_coordinator(self, name_or_alias: str) -> soco.SoCo:
+        """Resolve alias/name to the group coordinator, or the speaker itself if ungrouped."""
+        speaker = self.get_speaker(name_or_alias)
+        if speaker.group:
+            return speaker.group.coordinator
+        return speaker
+
     def get_speaker_info(self, speaker: soco.SoCo) -> dict:
         """Build the full status dict for a speaker."""
         info = speaker.get_current_transport_info()

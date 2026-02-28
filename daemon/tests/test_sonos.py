@@ -58,6 +58,22 @@ def test_get_all_speakers_returns_dict():
     assert "cthulhu" in all_speakers
 
 
+def test_get_coordinator_returns_self_when_not_grouped():
+    manager, mock_speaker = _make_manager()
+    mock_speaker.group = None
+    result = manager.get_coordinator("cthulhu")
+    assert result is mock_speaker
+
+
+def test_get_coordinator_returns_coordinator_when_follower():
+    manager, mock_follower = _make_manager()
+    mock_coordinator = MagicMock()
+    mock_follower.group = MagicMock()
+    mock_follower.group.coordinator = mock_coordinator
+    result = manager.get_coordinator("cthulhu")
+    assert result is mock_coordinator
+
+
 def test_play_favorite_uses_coordinator_when_speaker_is_follower():
     """play_favorite must call play_uri on the coordinator, not on a follower."""
     manager, mock_follower = _make_manager()
