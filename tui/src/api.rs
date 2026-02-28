@@ -94,6 +94,14 @@ impl ApiClient {
             .collect())
     }
 
+    pub async fn get_playlist_sort(&self) -> anyhow::Result<String> {
+        let resp: serde_json::Value = self.client
+            .get(format!("{}/config", self.base_url))
+            .send().await?
+            .json().await?;
+        Ok(resp["playlist_sort"].as_str().unwrap_or("alphabetical").to_string())
+    }
+
     pub async fn play(&self, speaker: &str, playlist: &str) -> anyhow::Result<()> {
         self.client.post(format!("{}/play", self.base_url))
             .json(&PlayRequest {

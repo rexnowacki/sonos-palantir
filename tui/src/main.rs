@@ -1,5 +1,6 @@
 mod api;
 mod app;
+mod history;
 mod ui;
 
 use std::sync::Arc;
@@ -55,6 +56,12 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Resu
                     favorite_name: title,
                 });
             }
+        }
+    }
+
+    if let Ok(sort) = client.get_playlist_sort().await {
+        if sort == "popularity" {
+            history::popularity_sort(&mut app.playlists);
         }
     }
 
@@ -136,6 +143,7 @@ async fn handle_key(app: &mut App, client: &ApiClient, key: KeyEvent) -> Result<
                 (app.speaker_id(), app.selected_playlist())
             {
                 let _ = client.play(&speaker_id, &playlist.alias).await;
+                history::record_play(&playlist.alias);
                 app.set_status(format!("Playing {} on {}", playlist.alias, speaker_id), 3);
             }
         }

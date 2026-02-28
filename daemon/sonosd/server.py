@@ -62,6 +62,13 @@ def get_playlists():
     return {"playlists": manager._playlist_map}
 
 
+@app.get("/config")
+def get_config():
+    return {
+        "playlist_sort": manager.config.get("playlist_sort", "alphabetical")
+    }
+
+
 @app.post("/play")
 def play(req: PlayRequest):
     try:

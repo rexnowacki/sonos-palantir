@@ -127,3 +127,10 @@ def test_get_favorites():
     assert resp.status_code == 200
     data = resp.json()
     assert any(f["title"] == "Jazz Classics" for f in data["favorites"])
+
+
+def test_get_config_returns_playlist_sort():
+    client, _, _ = _make_client()
+    resp = client.get("/config")
+    assert resp.status_code == 200
+    assert "playlist_sort" in resp.json()
