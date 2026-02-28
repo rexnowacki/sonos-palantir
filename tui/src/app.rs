@@ -89,4 +89,64 @@ impl App {
             Panel::NowPlaying => Panel::Speakers,
         };
     }
+
+    pub fn is_grouped(&self) -> bool {
+        // A speaker is a group follower when its coordinator differs from its own name.
+        // If any follower exists, speakers are grouped.
+        self.speakers.iter().any(|s| {
+            s.group_coordinator
+                .as_deref()
+                .map(|coord| coord != s.name)
+                .unwrap_or(false)
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::Speaker;
+
+    fn make_speaker(name: &str, coordinator: Option<&str>) -> Speaker {
+        Speaker {
+            name: name.to_string(),
+            alias: None,
+            ip: "0.0.0.0".to_string(),
+            volume: 25,
+            muted: false,
+            state: "PLAYING".to_string(),
+            group_coordinator: coordinator.map(|s| s.to_string()),
+            track: None,
+        }
+    }
+
+    #[test]
+    fn test_is_grouped_when_follower_present() {
+        let mut app = App::new();
+        app.speakers = vec![
+            make_speaker("Family Room", Some("Family Room")),
+            make_speaker("cthulhu", Some("Family Room")),
+        ];
+        assert!(app.is_grouped());
+    }
+
+    #[test]
+    fn test_is_not_grouped_when_all_self_coordinating() {
+        let mut app = App::new();
+        app.speakers = vec![
+            make_speaker("Family Room", Some("Family Room")),
+            make_speaker("cthulhu", Some("cthulhu")),
+        ];
+        assert!(!app.is_grouped());
+    }
+
+    #[test]
+    fn test_is_not_grouped_when_coordinators_null() {
+        let mut app = App::new();
+        app.speakers = vec![
+            make_speaker("Family Room", None),
+            make_speaker("cthulhu", None),
+        ];
+        assert!(!app.is_grouped());
+    }
 }
