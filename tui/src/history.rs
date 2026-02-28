@@ -84,13 +84,6 @@ mod tests {
     use super::*;
     use crate::api::Playlist;
 
-    fn fake_entry(playlist: &str, secs_ago: u64) -> PlayEntry {
-        PlayEntry {
-            playlist: playlist.to_string(),
-            played_at: now_unix().saturating_sub(secs_ago),
-        }
-    }
-
     #[test]
     fn test_play_counts_7d_from_counts_recent() {
         let now = now_unix();
