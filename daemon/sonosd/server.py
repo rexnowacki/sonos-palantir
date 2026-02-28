@@ -64,9 +64,9 @@ def get_playlists():
 
 @app.get("/config")
 def get_config():
-    return {
-        "playlist_sort": manager.config.get("playlist_sort", "alphabetical")
-    }
+    raw = manager.config.get("playlist_sort", "alphabetical")
+    sort = raw if raw in ("alphabetical", "popularity") else "alphabetical"
+    return {"playlist_sort": sort}
 
 
 @app.post("/play")
