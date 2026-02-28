@@ -3,6 +3,7 @@ from pydantic import BaseModel
 import uvicorn
 import yaml
 from pathlib import Path
+from soco.exceptions import SoCoUPnPException
 from .sonos import SonosManager
 
 app = FastAPI(title="sonosd")
@@ -150,6 +151,8 @@ def next_track(req: SpeakerRequest):
         return {"status": "ok"}
     except KeyError as e:
         raise HTTPException(404, str(e))
+    except SoCoUPnPException as e:
+        raise HTTPException(422, str(e))
 
 
 @app.post("/previous")
@@ -159,6 +162,8 @@ def prev_track(req: SpeakerRequest):
         return {"status": "ok"}
     except KeyError as e:
         raise HTTPException(404, str(e))
+    except SoCoUPnPException as e:
+        raise HTTPException(422, str(e))
 
 
 def main():

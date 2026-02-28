@@ -99,3 +99,19 @@ def test_next_track_returns_200():
     client, _, _ = _make_client()
     resp = client.post("/next", json={"speaker": "cthulhu"})
     assert resp.status_code == 200
+
+
+def test_next_track_upnp_error_returns_422():
+    from soco.exceptions import SoCoUPnPException
+    client, mock_manager, mock_speaker = _make_client()
+    mock_speaker.next.side_effect = SoCoUPnPException("UPnP Error 800", error_code=800, error_xml="")
+    resp = client.post("/next", json={"speaker": "cthulhu"})
+    assert resp.status_code == 422
+
+
+def test_previous_track_upnp_error_returns_422():
+    from soco.exceptions import SoCoUPnPException
+    client, mock_manager, mock_speaker = _make_client()
+    mock_speaker.previous.side_effect = SoCoUPnPException("UPnP Error 800", error_code=800, error_xml="")
+    resp = client.post("/previous", json={"speaker": "cthulhu"})
+    assert resp.status_code == 422
