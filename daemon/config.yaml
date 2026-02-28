@@ -5,6 +5,7 @@ playlists:
 # Speaker aliases — map short names to device names
 speakers:
   cthulhu: "cthulhu"
+  family: "Family Room"
 
 # Defaults
 default_speaker: cthulhu
