@@ -1,6 +1,7 @@
 import soco
 import threading
 import time
+import yaml
 from pathlib import Path
 from typing import Optional
 
@@ -26,19 +27,28 @@ class SonosManager:
 
     def _discover(self) -> None:
         """Run UPnP SSDP discovery and update the speaker cache."""
-        discovered = soco.discover(timeout=5)
-        if discovered:
-            with self._lock:
-                self._speakers = {sp.player_name: sp for sp in discovered}
+        try:
+            discovered = soco.discover(timeout=5)
+            if discovered:
+                with self._lock:
+                    self._speakers = {sp.player_name: sp for sp in discovered}
+        except Exception:
+            pass  # transient network error; retain existing speaker cache
 
     def _background_discover(self) -> None:
         while True:
-            time.sleep(_REDISCOVER_INTERVAL)
-            self._discover()
-            now = time.time()
-            if now - self._last_config_check >= 300:
-                self._last_config_check = now
-                self._check_config_reload()
+            try:
+                time.sleep(_REDISCOVER_INTERVAL)
+                self._discover()
+                now = time.time()
+                if now - self._last_config_check >= 300:
+                    self._last_config_check = now
+                    self._check_config_reload()
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).exception(
+                    "Background discovery error (will retry): %s", e
+                )
 
     def refresh(self) -> None:
         """Explicit re-discovery (startup / manual trigger)."""
@@ -162,7 +172,6 @@ class SonosManager:
 
     def reload_config(self) -> None:
         """Re-read config.yaml and update alias/playlist maps."""
-        import yaml
         with open(self._config_path) as f:
             config = yaml.safe_load(f)
         with self._lock:
