@@ -20,7 +20,11 @@ const BORDER_INACTIVE: Color = Color::Rgb(50, 50, 70);
 pub fn draw(f: &mut Frame, app: &App) {
     let outer = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(1), Constraint::Length(3)])
+        .constraints([
+            Constraint::Min(1),
+            Constraint::Length(1),
+            Constraint::Length(3),
+        ])
         .split(f.area());
 
     let main = Layout::default()
@@ -36,7 +40,8 @@ pub fn draw(f: &mut Frame, app: &App) {
     draw_speakers(f, app, left[0]);
     draw_playlists(f, app, left[1]);
     draw_now_playing(f, app, main[1]);
-    draw_help_bar(f, app, outer[1]);
+    draw_status_line(f, app, outer[1]);
+    draw_help_bar(f, app, outer[2]);
 }
 
 fn panel_block(title: &str, active: bool) -> Block<'_> {
@@ -220,6 +225,17 @@ fn draw_now_playing(f: &mut Frame, app: &App, area: Rect) {
         )),
     ]);
     f.render_widget(idle, inner);
+}
+
+fn draw_status_line(f: &mut Frame, app: &App, area: Rect) {
+    let msg = app.active_status();
+    let style = if msg.is_empty() {
+        Style::default().fg(DIM).bg(BG)
+    } else {
+        Style::default().fg(ACCENT).bg(BG)
+    };
+    let para = Paragraph::new(format!(" {}", msg)).style(style);
+    f.render_widget(para, area);
 }
 
 fn draw_help_bar(f: &mut Frame, app: &App, area: Rect) {

@@ -16,6 +16,10 @@ pub struct App {
     pub should_quit: bool,
     pub status_message: Option<String>,
     pub volume_input: Option<String>,
+    pub command_input: Option<String>,
+    pub sleep_until: Option<std::time::Instant>,
+    pub status_until: Option<std::time::Instant>,
+    pub help_open: bool,
 }
 
 impl App {
@@ -29,6 +33,10 @@ impl App {
             should_quit: false,
             status_message: None,
             volume_input: None,
+            command_input: None,
+            sleep_until: None,
+            status_until: None,
+            help_open: false,
         }
     }
 
@@ -88,6 +96,31 @@ impl App {
             Panel::Playlists => Panel::NowPlaying,
             Panel::NowPlaying => Panel::Speakers,
         };
+    }
+
+    pub fn set_status(&mut self, msg: impl Into<String>, secs: u64) {
+        self.status_message = Some(msg.into());
+        self.status_until = Some(
+            std::time::Instant::now() + std::time::Duration::from_secs(secs)
+        );
+    }
+
+    pub fn active_status(&self) -> String {
+        // Sleep countdown takes lowest priority — shown only when no timed message
+        if let Some(until) = self.status_until {
+            if until > std::time::Instant::now() {
+                return self.status_message.clone().unwrap_or_default();
+            }
+        }
+        if let Some(sleep_until) = self.sleep_until {
+            if sleep_until > std::time::Instant::now() {
+                let secs = sleep_until
+                    .duration_since(std::time::Instant::now())
+                    .as_secs();
+                return format!("Sleep: {}:{:02} remaining", secs / 60, secs % 60);
+            }
+        }
+        String::new()
     }
 
     pub fn is_grouped(&self) -> bool {
@@ -161,5 +194,18 @@ mod tests {
         let mut app = App::new();
         app.volume_input = Some(String::from("42"));
         assert_eq!(app.volume_input.as_deref(), Some("42"));
+    }
+
+    #[test]
+    fn test_active_status_returns_empty_when_nothing_set() {
+        let app = App::new();
+        assert_eq!(app.active_status(), "");
+    }
+
+    #[test]
+    fn test_set_status_returns_message_immediately() {
+        let mut app = App::new();
+        app.set_status("The gates of Moria are sealed.", 5);
+        assert_eq!(app.active_status(), "The gates of Moria are sealed.");
     }
 }
