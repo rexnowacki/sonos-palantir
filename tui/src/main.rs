@@ -39,8 +39,9 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Resu
     let client = Arc::new(ApiClient::new());
     let mut app = App::new();
 
-    if let Ok(speakers) = client.get_speakers().await {
-        app.speakers = speakers;
+    match client.get_speakers().await {
+        Ok(speakers) => app.speakers = speakers,
+        Err(_) => app.set_status("The gates of Moria are sealed. Start sonosd.", 3600),
     }
     if let Ok(playlists) = client.get_playlists().await {
         app.playlists = playlists;
@@ -84,6 +85,18 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Resu
         // Apply any fresh speaker data without blocking
         if let Ok(speakers) = rx.try_recv() {
             app.speakers = speakers;
+        }
+
+        // Check sleep timer expiry
+        if let Some(sleep_until) = app.sleep_until {
+            if std::time::Instant::now() >= sleep_until {
+                app.sleep_until = None;
+                for sp in &app.speakers {
+                    let id = sp.alias.as_deref().unwrap_or(&sp.name).to_string();
+                    let _ = client.pause(&id).await;
+                }
+                app.set_status("The Fellowship rests. All speakers paused.", 5);
+            }
         }
 
         if event::poll(TICK_RATE)? {
