@@ -15,7 +15,6 @@ pub struct App {
     pub playlist_index: usize,
     pub should_quit: bool,
     pub status_message: Option<String>,
-    pub last_refresh: std::time::Instant,
 }
 
 impl App {
@@ -28,7 +27,6 @@ impl App {
             playlist_index: 0,
             should_quit: false,
             status_message: None,
-            last_refresh: std::time::Instant::now(),
         }
     }
 

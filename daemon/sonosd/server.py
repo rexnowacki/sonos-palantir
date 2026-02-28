@@ -39,7 +39,6 @@ def startup():
 
 @app.get("/speakers")
 def get_speakers():
-    manager.refresh()
     speakers = []
     for name, sp in manager.get_all_speakers().items():
         try:

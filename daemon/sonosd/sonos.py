@@ -1,5 +1,9 @@
 import soco
+import threading
+import time
 from typing import Optional
+
+_REDISCOVER_INTERVAL = 30  # seconds between background UPnP sweeps
 
 
 class SonosManager:
@@ -8,26 +12,41 @@ class SonosManager:
     def __init__(self, config: dict):
         self.config = config
         self._speakers: dict[str, soco.SoCo] = {}
+        self._lock = threading.Lock()
         self._alias_map: dict[str, str] = config.get("speakers", {})
         self._reverse_alias: dict[str, str] = {v: k for k, v in self._alias_map.items()}
         self._playlist_map: dict[str, str] = config.get("playlists", {})
-        self.refresh()
+        self._discover()
+        t = threading.Thread(target=self._background_discover, daemon=True)
+        t.start()
 
-    def refresh(self) -> None:
-        """Re-discover speakers on the network."""
+    def _discover(self) -> None:
+        """Run UPnP SSDP discovery and update the speaker cache."""
         discovered = soco.discover(timeout=5)
         if discovered:
-            self._speakers = {sp.player_name: sp for sp in discovered}
+            with self._lock:
+                self._speakers = {sp.player_name: sp for sp in discovered}
+
+    def _background_discover(self) -> None:
+        while True:
+            time.sleep(_REDISCOVER_INTERVAL)
+            self._discover()
+
+    def refresh(self) -> None:
+        """Explicit re-discovery (startup / manual trigger)."""
+        self._discover()
 
     def get_speaker(self, name_or_alias: str) -> soco.SoCo:
         """Resolve alias or name to a SoCo instance."""
         real_name = self._alias_map.get(name_or_alias, name_or_alias)
-        if real_name in self._speakers:
-            return self._speakers[real_name]
+        with self._lock:
+            if real_name in self._speakers:
+                return self._speakers[real_name]
         raise KeyError(f"Speaker not found: {name_or_alias}")
 
     def get_all_speakers(self) -> dict[str, soco.SoCo]:
-        return self._speakers
+        with self._lock:
+            return dict(self._speakers)
 
     def get_coordinator(self, name_or_alias: str) -> soco.SoCo:
         """Resolve alias/name to the group coordinator, or the speaker itself if ungrouped."""

@@ -2,6 +2,7 @@ mod api;
 mod app;
 mod ui;
 
+use std::sync::Arc;
 use std::time::Duration;
 use anyhow::Result;
 use crossterm::{
@@ -10,7 +11,7 @@ use crossterm::{
     execute,
 };
 use ratatui::prelude::*;
-use crate::api::ApiClient;
+use crate::api::{ApiClient, Speaker};
 use crate::app::App;
 
 const POLL_INTERVAL: Duration = Duration::from_secs(2);
@@ -33,7 +34,7 @@ async fn main() -> Result<()> {
 }
 
 async fn run(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Result<()> {
-    let client = ApiClient::new();
+    let client = Arc::new(ApiClient::new());
     let mut app = App::new();
 
     if let Ok(speakers) = client.get_speakers().await {
@@ -43,20 +44,30 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Resu
         app.playlists = playlists;
     }
 
+    // Background refresh — never blocks the event loop
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<Speaker>>(1);
+    let refresh_client = Arc::clone(&client);
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(POLL_INTERVAL).await;
+            if let Ok(speakers) = refresh_client.get_speakers().await {
+                let _ = tx.send(speakers).await;
+            }
+        }
+    });
+
     loop {
         terminal.draw(|f| ui::draw(f, &app))?;
+
+        // Apply any fresh speaker data without blocking
+        if let Ok(speakers) = rx.try_recv() {
+            app.speakers = speakers;
+        }
 
         if event::poll(TICK_RATE)? {
             if let Event::Key(key) = event::read()? {
                 handle_key(&mut app, &client, key).await?;
             }
-        }
-
-        if app.last_refresh.elapsed() >= POLL_INTERVAL {
-            if let Ok(speakers) = client.get_speakers().await {
-                app.speakers = speakers;
-            }
-            app.last_refresh = std::time::Instant::now();
         }
 
         if app.should_quit {
