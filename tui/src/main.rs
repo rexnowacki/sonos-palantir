@@ -247,8 +247,12 @@ async fn handle_key(app: &mut App, client: &ApiClient, key: KeyEvent) -> Result<
                     .iter()
                     .map(|p| p.favorite_name.clone())
                     .collect();
+                let speaker_names: Vec<String> = app.speakers
+                    .iter()
+                    .map(|s| s.alias.as_deref().unwrap_or(&s.name).to_string())
+                    .collect();
                 let current = app.command_input.as_ref().unwrap().clone();
-                if let Some(ghost) = command::autocomplete(&current, &playlist_names) {
+                if let Some(ghost) = command::autocomplete(&current, &playlist_names, &speaker_names) {
                     if ghost.starts_with(" → ") {
                         // contains-match ghost: replace query with full name
                         let parts: Vec<&str> = current.splitn(2, ' ').collect();

@@ -59,7 +59,8 @@ pub fn parse(input: &str) -> Option<Command> {
 
 /// Given partial command input (without leading `:`), return ghost text to display.
 /// `playlist_names` is a list of `favorite_name` strings for fuzzy matching.
-pub fn autocomplete(input: &str, playlist_names: &[String]) -> Option<String> {
+/// `speaker_names` is a list of speaker alias/names for commands that target speakers.
+pub fn autocomplete(input: &str, playlist_names: &[String], speaker_names: &[String]) -> Option<String> {
     if input.is_empty() {
         return None;
     }
@@ -76,26 +77,47 @@ pub fn autocomplete(input: &str, playlist_names: &[String]) -> Option<String> {
         }
         return None;
     }
+    let (cmd, rest) = input.split_once(' ').unwrap();
+
     // :play <query> — fuzzy match against playlist names
-    let (cmd, query) = input.split_once(' ').unwrap();
-    if (cmd == "play" || cmd == "p") && !query.is_empty() {
-        let q = query.to_lowercase();
-        if let Some(m) = playlist_names.iter().find(|n| n.to_lowercase().starts_with(&q)) {
-            if m.to_lowercase() != q {
-                // Use char-count from the lowercased query to find the safe byte boundary
-                // in the original-case string m, avoiding byte-offset panics on non-ASCII
-                let prefix_byte_len: usize = m.chars()
-                    .zip(m.to_lowercase().chars())
-                    .take(q.chars().count())
-                    .map(|(orig_c, _)| orig_c.len_utf8())
-                    .sum();
-                return Some(m[prefix_byte_len..].to_string());
+    if (cmd == "play" || cmd == "p") && !rest.is_empty() {
+        return fuzzy_complete(rest, playlist_names);
+    }
+
+    // :vol <speaker> <number> — complete speaker name as first arg
+    if cmd == "vol" || cmd == "volume" {
+        // If rest has no space yet, we're completing the first arg (speaker or number)
+        if !rest.contains(' ') && !rest.is_empty() {
+            // Don't complete if it's purely numeric (user is typing a volume number)
+            if rest.parse::<u8>().is_err() {
+                // Also offer "all" as a completion target
+                let mut names = speaker_names.to_vec();
+                names.push("all".to_string());
+                return fuzzy_complete(rest, &names);
             }
         }
-        // fallback: contains match
-        if let Some(m) = playlist_names.iter().find(|n| n.to_lowercase().contains(&q)) {
-            return Some(format!(" → {}", m));
+    }
+
+    None
+}
+
+/// Fuzzy-match `query` against `candidates`, returning ghost text suffix.
+fn fuzzy_complete(query: &str, candidates: &[String]) -> Option<String> {
+    let q = query.to_lowercase();
+    // Prefix match
+    if let Some(m) = candidates.iter().find(|n| n.to_lowercase().starts_with(&q)) {
+        if m.to_lowercase() != q {
+            let prefix_byte_len: usize = m.chars()
+                .zip(m.to_lowercase().chars())
+                .take(q.chars().count())
+                .map(|(orig_c, _)| orig_c.len_utf8())
+                .sum();
+            return Some(m[prefix_byte_len..].to_string());
         }
+    }
+    // Contains match fallback
+    if let Some(m) = candidates.iter().find(|n| n.to_lowercase().contains(&q)) {
+        return Some(format!(" → {}", m));
     }
     None
 }
@@ -158,27 +180,42 @@ mod tests {
 
     #[test]
     fn test_autocomplete_command_name() {
-        assert_eq!(autocomplete("sl", &[]), Some("eep".to_string()));
-        assert_eq!(autocomplete("re", &[]), Some("load".to_string()));
-        assert_eq!(autocomplete("reload", &[]), None); // exact match
+        assert_eq!(autocomplete("sl", &[], &[]), Some("eep".to_string()));
+        assert_eq!(autocomplete("re", &[], &[]), Some("load".to_string()));
+        assert_eq!(autocomplete("reload", &[], &[]), None); // exact match
     }
 
     #[test]
     fn test_autocomplete_play_fuzzy() {
         let names = vec!["Alt Wave".to_string(), "Jazz Classics".to_string()];
-        let result = autocomplete("play alt", &names);
+        let result = autocomplete("play alt", &names, &[]);
         assert_eq!(result, Some(" Wave".to_string()));
     }
 
     #[test]
     fn test_autocomplete_no_match() {
         let names = vec!["Alt Wave".to_string()];
-        assert_eq!(autocomplete("play xyz", &names), None);
+        assert_eq!(autocomplete("play xyz", &names, &[]), None);
     }
 
     #[test]
     fn test_autocomplete_empty_input() {
-        assert_eq!(autocomplete("", &[]), None);
+        assert_eq!(autocomplete("", &[], &[]), None);
+    }
+
+    #[test]
+    fn test_autocomplete_vol_speaker() {
+        let speakers = vec!["cthulhu".to_string(), "family".to_string()];
+        assert_eq!(autocomplete("vol cth", &[], &speakers), Some("ulhu".to_string()));
+        assert_eq!(autocomplete("vol fam", &[], &speakers), Some("ily".to_string()));
+        assert_eq!(autocomplete("vol al", &[], &speakers), Some("l".to_string())); // "all"
+    }
+
+    #[test]
+    fn test_autocomplete_vol_number_not_completed() {
+        let speakers = vec!["cthulhu".to_string()];
+        // Typing a number should not trigger speaker completion
+        assert_eq!(autocomplete("vol 30", &[], &speakers), None);
     }
 
     #[test]
@@ -199,7 +236,7 @@ mod tests {
     #[test]
     fn test_autocomplete_p_alias_plays_fuzzy() {
         let names = vec!["Alt Wave".to_string()];
-        let result = autocomplete("p alt", &names);
+        let result = autocomplete("p alt", &names, &[]);
         // "p alt" has a space so it enters the play-fuzzy path
         assert_eq!(result, Some(" Wave".to_string()));
     }

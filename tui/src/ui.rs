@@ -96,10 +96,13 @@ pub fn draw(f: &mut Frame, app: &App) {
         app.speakers.len() as u16 * 2
     };
     let rooms_height = speaker_rows + 2; // +2 for border top/bottom
+    // Cap rooms so playlists always gets at least 5 rows (border + 3 items)
+    let left_height = main[0].height;
+    let rooms_capped = rooms_height.min(left_height.saturating_sub(5));
 
     let left = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(rooms_height), Constraint::Min(0)])
+        .constraints([Constraint::Length(rooms_capped), Constraint::Min(5)])
         .split(main[0]);
 
     draw_speakers(f, app, left[0]);
@@ -499,7 +502,11 @@ fn draw_help_bar(f: &mut Frame, app: &App, area: Rect) {
             .iter()
             .map(|p| p.favorite_name.clone())
             .collect();
-        let ghost = command::autocomplete(input, &playlist_names);
+        let speaker_names: Vec<String> = app.speakers
+            .iter()
+            .map(|s| s.alias.as_deref().unwrap_or(&s.name).to_string())
+            .collect();
+        let ghost = command::autocomplete(input, &playlist_names, &speaker_names);
 
         let mut spans = vec![
             Span::styled("  :", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
