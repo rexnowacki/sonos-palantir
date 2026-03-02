@@ -19,7 +19,7 @@ fn now_unix() -> u64 {
 
 pub fn history_path() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let dir = PathBuf::from(home).join(".config/sono-palantir");
+    let dir = PathBuf::from(home).join(".config/sonos-palantir");
     fs::create_dir_all(&dir).ok();
     dir.join("history.json")
 }

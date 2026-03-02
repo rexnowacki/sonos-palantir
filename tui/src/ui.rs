@@ -41,7 +41,7 @@ pub fn draw_splash(f: &mut Frame) {
 
     f.render_widget(
         Paragraph::new(Span::styled(
-            "S O N O - P A L A N T I R",
+            "S O N O S - P A L A N T I R",
             Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
         )).alignment(ratatui::layout::Alignment::Center),
         chunks[1],
@@ -494,7 +494,7 @@ fn draw_help_bar(f: &mut Frame, app: &App, area: Rect) {
 fn draw_help_overlay(f: &mut Frame) {
     let area = f.area();
     let block = Block::default()
-        .title(" ? The Lore of sono-palantir — Esc or ? to close ")
+        .title(" ? The Lore of sonos-palantir — Esc or ? to close ")
         .borders(Borders::ALL)
         .border_style(Style::default().fg(ACCENT))
         .style(Style::default().bg(BG));
