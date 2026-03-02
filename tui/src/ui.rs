@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Gauge, List, ListItem, ListState, Paragraph},
+    widgets::{Block, BorderType, Borders, Gauge, List, ListItem, ListState, Paragraph},
     Frame,
 };
 use crate::app::{App, Panel};
@@ -22,6 +22,7 @@ pub fn draw_splash(f: &mut Frame) {
     let area = f.area();
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(ACCENT))
         .style(Style::default().bg(BG));
     let inner = block.inner(area);
@@ -98,6 +99,7 @@ fn panel_block(title: &str, active: bool) -> Block<'_> {
     Block::default()
         .title(format!(" {} ", title))
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(border_color))
         .style(Style::default().bg(BG))
 }
@@ -435,6 +437,7 @@ fn draw_help_bar(f: &mut Frame, app: &App, area: Rect) {
 
         let block = Block::default()
             .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(ACCENT))
             .style(Style::default().bg(BG));
         f.render_widget(Paragraph::new(Line::from(spans)).block(block), area);
@@ -452,6 +455,7 @@ fn draw_help_bar(f: &mut Frame, app: &App, area: Rect) {
         ]);
         let block = Block::default()
             .borders(Borders::ALL)
+            .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(ACCENT))
             .style(Style::default().bg(BG));
         f.render_widget(Paragraph::new(prompt).block(block), area);
@@ -485,6 +489,7 @@ fn draw_help_bar(f: &mut Frame, app: &App, area: Rect) {
 
     let block = Block::default()
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(BORDER_INACTIVE))
         .style(Style::default().bg(BG));
     let paragraph = Paragraph::new(help).block(block);
@@ -496,6 +501,7 @@ fn draw_help_overlay(f: &mut Frame) {
     let block = Block::default()
         .title(" ? The Lore of sonos-palantir — Esc or ? to close ")
         .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(ACCENT))
         .style(Style::default().bg(BG));
     let inner = block.inner(area);
