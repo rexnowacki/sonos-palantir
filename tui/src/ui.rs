@@ -2,7 +2,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Gauge, List, ListItem, ListState, Paragraph},
+    widgets::{Block, BorderType, Borders, List, ListItem, ListState, Paragraph},
     Frame,
 };
 use crate::app::{App, Panel};
@@ -367,11 +367,30 @@ fn draw_now_playing(f: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-fn draw_track_block(f: &mut Frame, sp: &crate::api::Speaker, area: Rect, show_vol: bool) {
+/// Render a segmented progress bar: `═══════●─────────`.
+fn segmented_progress(position: u64, duration: u64, width: usize) -> Line<'static> {
+    if duration == 0 || width < 4 {
+        return Line::from("");
+    }
+    let ratio = (position as f64 / duration as f64).min(1.0);
+    let filled = (ratio * width as f64) as usize;
+    let filled = filled.min(width.saturating_sub(1));
+
+    let before = "═".repeat(filled);
+    let after = "─".repeat(width.saturating_sub(filled + 1));
+
+    Line::from(vec![
+        Span::styled(before, Style::default().fg(ACCENT)),
+        Span::styled("●", Style::default().fg(Color::Rgb(255, 255, 255))),
+        Span::styled(after, Style::default().fg(DIM)),
+    ])
+}
+
+fn draw_track_block(f: &mut Frame, sp: &crate::api::Speaker, area: Rect, _show_vol: bool) {
     if area.height == 0 {
         return;
     }
-    // Group/speaker label (dim)
+    // Speaker label
     let label_area = Rect { y: area.y, height: 1, ..area };
     let label = Paragraph::new(Line::from(vec![
         Span::styled(
@@ -392,17 +411,17 @@ fn draw_track_block(f: &mut Frame, sp: &crate::api::Speaker, area: Rect, show_vo
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(1), // title
-                Constraint::Length(1), // artist
-                Constraint::Length(1), // album
+                Constraint::Length(1), // artist — album
+                Constraint::Length(1), // spacer
+                Constraint::Length(1), // source / quality
                 Constraint::Length(1), // spacer
                 Constraint::Length(1), // progress bar
                 Constraint::Length(1), // time
-                Constraint::Length(1), // spacer
-                Constraint::Length(1), // volume (optional)
                 Constraint::Min(0),
             ])
             .split(content_area);
 
+        // Track title
         f.render_widget(
             Paragraph::new(Line::from(vec![
                 Span::styled("  ♫ ", Style::default().fg(PLAYING)),
@@ -410,60 +429,50 @@ fn draw_track_block(f: &mut Frame, sp: &crate::api::Speaker, area: Rect, show_vo
             ])),
             chunks[0],
         );
+        // Artist — Album
         f.render_widget(
             Paragraph::new(Line::from(vec![
                 Span::raw("    "),
                 Span::styled(&track.artist, Style::default().fg(ACCENT)),
+                Span::styled(" — ", Style::default().fg(DIM)),
+                Span::styled(&track.album, Style::default().fg(DIM)),
             ])),
             chunks[1],
         );
-        f.render_widget(
-            Paragraph::new(Line::from(vec![
-                Span::raw("    "),
-                Span::styled(&track.album, Style::default().fg(DIM)),
-            ])),
-            chunks[2],
-        );
 
-        let ratio = if track.duration > 0 {
-            (track.position as f64 / track.duration as f64).min(1.0)
+        // Source / Quality line
+        let source_line = if !track.source.is_empty() {
+            let mut spans = vec![
+                Span::raw("    "),
+                Span::styled(format!("Source: {}", track.source), Style::default().fg(DIM)),
+            ];
+            if !track.quality.is_empty() {
+                spans.push(Span::styled(format!(" · Quality: {}", track.quality), Style::default().fg(DIM)));
+            }
+            Line::from(spans)
         } else {
-            0.0
+            Line::from("")
         };
-        let gauge_area = Rect {
-            x: chunks[4].x + 4,
-            width: chunks[4].width.saturating_sub(8),
-            ..chunks[4]
+        f.render_widget(Paragraph::new(source_line), chunks[3]);
+
+        // Segmented progress bar
+        let bar_width = chunks[5].width.saturating_sub(8) as usize;
+        let progress = segmented_progress(track.position, track.duration, bar_width);
+        let bar_area = Rect {
+            x: chunks[5].x + 4,
+            width: chunks[5].width.saturating_sub(8),
+            ..chunks[5]
         };
-        f.render_widget(
-            Gauge::default()
-                .gauge_style(Style::default().fg(ACCENT).bg(Color::Rgb(40, 40, 55)))
-                .ratio(ratio)
-                .label(""),
-            gauge_area,
-        );
+        f.render_widget(Paragraph::new(progress), bar_area);
+
+        // Time display
         f.render_widget(
             Paragraph::new(Span::styled(
                 format!("    {} / {}", format_time(track.position), format_time(track.duration)),
                 Style::default().fg(DIM),
             )),
-            chunks[5],
+            chunks[6],
         );
-
-        if show_vol {
-            let vol_area = Rect {
-                x: chunks[7].x + 4,
-                width: chunks[7].width.saturating_sub(8),
-                ..chunks[7]
-            };
-            f.render_widget(
-                Gauge::default()
-                    .gauge_style(Style::default().fg(PLAYING).bg(Color::Rgb(40, 40, 55)))
-                    .ratio((sp.volume as f64 / 100.0).min(1.0))
-                    .label(format!("Vol: {}", sp.volume)),
-                vol_area,
-            );
-        }
     } else {
         f.render_widget(
             Paragraph::new(Span::styled("  Nothing playing", Style::default().fg(DIM))),
