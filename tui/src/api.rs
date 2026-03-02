@@ -21,6 +21,10 @@ pub struct Track {
     pub album: String,
     pub duration: u64,
     pub position: u64,
+    #[serde(default)]
+    pub source: String,
+    #[serde(default)]
+    pub quality: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
