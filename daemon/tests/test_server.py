@@ -255,3 +255,12 @@ def test_podcast_refresh():
     client, _, _, pm = _make_podcast_client()
     resp = client.post("/podcasts/refresh")
     assert resp.status_code == 200
+
+
+def test_get_config_returns_podcast_skip():
+    client, _, _, _ = _make_podcast_client()
+    resp = client.get("/config")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["podcast_skip_forward"] == 30
+    assert data["podcast_skip_back"] == 10
