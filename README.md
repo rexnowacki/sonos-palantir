@@ -1,19 +1,27 @@
-# sono-palantir
+# sonos-palantir
 
 A Lord of the Rings themed terminal interface for controlling Sonos speakers. Python daemon wraps `soco` and exposes a JSON REST API; Rust TUI renders it with Ratatui.
 
 ```
-┌─ Speakers/Topology ─┬─ Now Playing ─────────────────────────────┐
-│ ╔═ Fellowship ═════╗ │  ╔═ Fellowship ══════════════════════════╗ │
-│ ║ ► cthulhu  ◈    ║ │  ║ ♫ Penny in the Lake                  ║ │
-│ ║   family   ↳    ║ │  ║ Ratboys  ·  1:23 / 3:51              ║ │
-│ ╚═════════════════╝ │  ║ Vol: ████░░ 25                        ║ │
-│   hermit (solo) ·   │  ╚══════════════════════════════════════╝ │
-├─ Playlists ─────────┤  (hermit — Nothing playing)               │
-│ ► altwave  Alt Wave │                                            │
-└─────────────────────┴────────────────────────────────────────────┘
- Sleep: 28:14 remaining · The fellowship is assembled.
- Tab panel  ↑↓ nav  : cmd  ? help  v vol#  g group  q quit
+ ● cthulhu  ▶ Penny in the Lake — Ratboys   VOL 45%  palantir:OK  Sonos:2
+╭─ Rooms ──────────╮╭─ Now Playing ─────────────────────────────────╮
+│ ▸ cthulhu   ▶ 45 ││  cthulhu                                     │
+│   ████████▓      ││  ♫ Penny in the Lake                         │
+│   family    ‖ 30 ││    Ratboys — Happy Birthday, Ratboy          │
+│   ██████▒        ││                                               │
+│                  ││    Source: Spotify                            │
+│ GROUPED          ││                                               │
+│   cth + family   ││    ════════════●──────────── 1:23 / 3:51     │
+├──────────────────┤│                                               │
+│ Playlists        ││                                               │
+│ ▸ altwave        ││                                               │
+│   Jazz Classics  ││                                               │
+│   Lo-Fi Beats    ││                                               │
+╰──────────────────╯╰──────────────────────────────────────────────╯
+ The fellowship is assembled.
+╭──────────────────────────────────────────────────────────────────╮
+│ Tab panel  ↑↓ nav  Enter play  Space pause  +/- vol  : cmd  q   │
+╰──────────────────────────────────────────────────────────────────╯
 ```
 
 ## Architecture
@@ -92,12 +100,14 @@ cargo build --release
 
 ## Command Mode
 
-Press `:` to enter command mode. Ghost text autocomplete appears as you type; press `Tab` to accept.
+Press `:` to enter command mode. Ghost text autocomplete appears as you type for command names, playlist names, and speaker names; press `Tab` to accept.
 
 | Command | Action |
 |---------|--------|
 | `:play <name>` | Fuzzy-match a favorite and play it |
-| `:vol <0-100>` | Set exact volume |
+| `:vol <0-100>` | Set volume on selected speaker |
+| `:vol <speaker> <0-100>` | Set volume on a specific speaker (Tab-completes names) |
+| `:vol all <0-100>` | Set volume on all speakers |
 | `:group all` | Group all speakers |
 | `:ungroup` | Ungroup all speakers |
 | `:next` | Skip to next track |
@@ -110,7 +120,13 @@ Press `Esc` to cancel.
 
 ## Features
 
-- **Group topology view** — when speakers are grouped, the Speakers panel shows a live ASCII topology map (`◈` coordinator, `↳` follower)
+- **Top status bar** — at-a-glance view of active speaker, current track, volume, daemon status, and speaker count
+- **Per-speaker volume bars** — colored gradient bars (green → yellow → red) below each speaker in the Rooms panel
+- **Group subsections** — grouped speakers shown under a `GROUPED cth + family` header instead of box topology
+- **Segmented progress bar** — `═══════●─────────` style playhead in Now Playing
+- **Source detection** — shows streaming source (Spotify, Apple Music, Tidal, etc.) extracted from track URI
+- **Rounded borders** — `╭╮╰╯` elven-forged borders across all panels
+- **Command autocomplete** — ghost text for playlist names and speaker names; Tab to accept
 - **Multi-group Now Playing** — stacked track blocks, one per active group and solo speaker
 - **Play history** — tracks which playlists you play; set `playlist_sort: popularity` in `config.yaml` to sort by 7-day play count
 - **Sleep timer** — countdown shown in the status line; all speakers pause on expiry
