@@ -67,31 +67,114 @@ pub fn draw(f: &mut Frame, app: &App) {
     let outer = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Min(1),
-            Constraint::Length(1),
-            Constraint::Length(3),
+            Constraint::Length(1),   // top status bar
+            Constraint::Min(1),     // main panels
+            Constraint::Length(1),   // status line
+            Constraint::Length(3),   // help bar / command input
         ])
         .split(f.area());
 
+    draw_top_bar(f, app, outer[0]);
+
     let main = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
-        .split(outer[0]);
+        .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
+        .split(outer[1]);
+
+    // Dynamic left column: Rooms takes what it needs, Playlists gets the rest
+    let speaker_rows = if app.is_grouped() {
+        let mut rows: u16 = 0;
+        for coord in app.coordinators() {
+            let members = app.group_members_of(&coord.name);
+            rows += 1 + (members.len() as u16 * 2) + 1; // header + members*2 + blank
+        }
+        for _solo in app.solo_speakers() {
+            rows += 2;
+        }
+        rows
+    } else {
+        app.speakers.len() as u16 * 2
+    };
+    let rooms_height = speaker_rows + 2; // +2 for border top/bottom
 
     let left = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(55), Constraint::Percentage(45)])
+        .constraints([Constraint::Length(rooms_height), Constraint::Min(0)])
         .split(main[0]);
 
     draw_speakers(f, app, left[0]);
     draw_playlists(f, app, left[1]);
     draw_now_playing(f, app, main[1]);
-    draw_status_line(f, app, outer[1]);
-    draw_help_bar(f, app, outer[2]);
+    draw_status_line(f, app, outer[2]);
+    draw_help_bar(f, app, outer[3]);
 
     if app.help_open {
         draw_help_overlay(f);
     }
+}
+
+const TOP_BAR_BG: Color = Color::Rgb(30, 30, 45);
+
+fn draw_top_bar(f: &mut Frame, app: &App, area: Rect) {
+    let selected = app.selected_speaker();
+
+    // Playing indicator dot
+    let (dot, dot_color) = match selected.map(|s| s.state.as_str()) {
+        Some("PLAYING") => ("●", PLAYING),
+        Some("PAUSED_PLAYBACK") => ("●", PAUSED),
+        _ => ("●", DIM),
+    };
+
+    // Speaker name
+    let speaker_name = selected
+        .map(|s| s.alias.as_deref().unwrap_or(&s.name).to_string())
+        .unwrap_or_else(|| "—".to_string());
+
+    // Track info
+    let track_info = selected
+        .and_then(|s| s.track.as_ref())
+        .map(|t| format!("{} — {}", t.title, t.artist))
+        .unwrap_or_default();
+
+    // Volume
+    let vol = selected.map(|s| format!("VOL {}%", s.volume)).unwrap_or_default();
+
+    // Daemon status
+    let daemon_status = if app.speakers.is_empty() {
+        Span::styled("palantir:ERR", Style::default().fg(Color::Rgb(220, 80, 80)))
+    } else {
+        Span::styled("palantir:OK", Style::default().fg(PLAYING))
+    };
+
+    // Speaker count
+    let count = format!("Sonos:{}", app.speakers.len());
+
+    // Truncate track info to fit available space
+    let right_len = vol.len() + 14 + count.len() + 6;
+    let available = (area.width as usize)
+        .saturating_sub(speaker_name.len())
+        .saturating_sub(right_len)
+        .saturating_sub(6);
+    let track_display = if track_info.len() > available {
+        truncate(&track_info, available)
+    } else {
+        track_info
+    };
+
+    let spans = vec![
+        Span::styled(format!(" {} ", dot), Style::default().fg(dot_color).bg(TOP_BAR_BG)),
+        Span::styled(format!("{} ", speaker_name), Style::default().fg(ACCENT).bg(TOP_BAR_BG).add_modifier(Modifier::BOLD)),
+        Span::styled(track_display, Style::default().fg(FG).bg(TOP_BAR_BG)),
+        Span::styled("  ", Style::default().bg(TOP_BAR_BG)),
+        Span::styled(format!("{} ", vol), Style::default().fg(DIM).bg(TOP_BAR_BG)),
+        Span::styled(" ", Style::default().bg(TOP_BAR_BG)),
+        daemon_status.style(Style::default().bg(TOP_BAR_BG)),
+        Span::styled(format!("  {} ", count), Style::default().fg(DIM).bg(TOP_BAR_BG)),
+    ];
+
+    let bar = Paragraph::new(Line::from(spans))
+        .style(Style::default().bg(TOP_BAR_BG));
+    f.render_widget(bar, area);
 }
 
 fn panel_block(title: &str, active: bool) -> Block<'_> {
