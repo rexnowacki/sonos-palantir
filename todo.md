@@ -1,25 +1,19 @@
 # Todo
 
-## ~~Grouped speaker display~~ ✓
+## Add podcasts via TUI command
 
-In the Speakers panel, show group membership inline. **Done:** `◈` marks the coordinator, `↳` marks followers in the Speakers panel.
-
----
-
-## ~~Now Playing for externally-started media~~ ✓
-
-If music is already playing (started via the Sonos iOS app, Spotify, etc.), show that track info in the Now Playing panel. **Done:** Follower speakers now fall back to the coordinator's track info in `get_speaker_info` when their own track is empty.
+`:podcast add <url>` (or `:podcast add <alias> <url>`) to subscribe to a podcast directly from the TUI without editing config.yaml. Daemon writes the new entry to config.yaml and fetches the feed immediately.
 
 ---
 
-## ~~Favorites refresh on startup~~ ✓
+## Podcast episode queue
 
-**Done:** `get_favorites()` added to `ApiClient`; any Sonos Favorite not already aliased in `config.yaml` is merged into the playlists panel on startup using its full title.
+Allow queuing multiple episodes for sequential playback instead of one-at-a-time.
 
 ---
 
-## ~~Set volume to a specific value~~ ✓
+## Seek bar interaction
 
-**Done:** Press `v` to enter volume input mode, type 0–3 digits, `Enter` to apply (clamped to 100), `Esc` to cancel. Help bar shows `Vol: [##▌]` prompt while in input mode.
+Allow clicking or keybinding-driven seeking on the progress bar (e.g. `0`-`9` to jump to 0%-90% of track).
 
 ---
