@@ -7,6 +7,12 @@ pub enum Panel {
     NowPlaying,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SourceMode {
+    Playlists,
+    Podcasts,
+}
+
 pub struct App {
     pub speakers: Vec<Speaker>,
     pub playlists: Vec<Playlist>,
@@ -20,6 +26,15 @@ pub struct App {
     pub sleep_until: Option<std::time::Instant>,
     pub status_until: Option<std::time::Instant>,
     pub help_open: bool,
+    pub source_mode: SourceMode,
+    pub podcasts: Vec<crate::api::Podcast>,
+    pub podcast_index: usize,
+    pub episodes: Vec<crate::api::Episode>,
+    pub episode_index: usize,
+    pub podcast_drill: bool,
+    pub skip_forward: i32,
+    pub skip_back: i32,
+    pub current_episode_id: Option<String>,
 }
 
 impl App {
@@ -37,6 +52,15 @@ impl App {
             sleep_until: None,
             status_until: None,
             help_open: false,
+            source_mode: SourceMode::Playlists,
+            podcasts: vec![],
+            podcast_index: 0,
+            episodes: vec![],
+            episode_index: 0,
+            podcast_drill: false,
+            skip_forward: 30,
+            skip_back: 10,
+            current_episode_id: None,
         }
     }
 
@@ -62,7 +86,15 @@ impl App {
                 }
             }
             Panel::Playlists => {
-                if !self.playlists.is_empty() {
+                if self.source_mode == SourceMode::Podcasts {
+                    if self.podcast_drill {
+                        if !self.episodes.is_empty() {
+                            self.episode_index = (self.episode_index + 1) % self.episodes.len();
+                        }
+                    } else if !self.podcasts.is_empty() {
+                        self.podcast_index = (self.podcast_index + 1) % self.podcasts.len();
+                    }
+                } else if !self.playlists.is_empty() {
                     self.playlist_index = (self.playlist_index + 1) % self.playlists.len();
                 }
             }
@@ -80,7 +112,19 @@ impl App {
                 }
             }
             Panel::Playlists => {
-                if !self.playlists.is_empty() {
+                if self.source_mode == SourceMode::Podcasts {
+                    if self.podcast_drill {
+                        if !self.episodes.is_empty() {
+                            self.episode_index = self.episode_index
+                                .checked_sub(1)
+                                .unwrap_or(self.episodes.len() - 1);
+                        }
+                    } else if !self.podcasts.is_empty() {
+                        self.podcast_index = self.podcast_index
+                            .checked_sub(1)
+                            .unwrap_or(self.podcasts.len() - 1);
+                    }
+                } else if !self.playlists.is_empty() {
                     self.playlist_index = self.playlist_index
                         .checked_sub(1)
                         .unwrap_or(self.playlists.len() - 1);
@@ -150,6 +194,29 @@ impl App {
         self.speakers.iter().filter(|s| {
             s.group_coordinator.as_deref() == Some(s.name.as_str())
         }).collect()
+    }
+
+    pub fn toggle_source(&mut self) {
+        self.source_mode = match self.source_mode {
+            SourceMode::Playlists => SourceMode::Podcasts,
+            SourceMode::Podcasts => SourceMode::Playlists,
+        };
+        self.podcast_drill = false;
+    }
+
+    pub fn selected_podcast(&self) -> Option<&crate::api::Podcast> {
+        self.podcasts.get(self.podcast_index)
+    }
+
+    pub fn selected_episode(&self) -> Option<&crate::api::Episode> {
+        self.episodes.get(self.episode_index)
+    }
+
+    pub fn is_podcast_playing(&self) -> bool {
+        self.selected_speaker()
+            .and_then(|s| s.track.as_ref())
+            .map(|t| t.source == "Podcast")
+            .unwrap_or(false)
     }
 
     /// One entry per distinct group (represented by coordinator) + each solo speaker.
@@ -349,5 +416,38 @@ mod tests {
             make_speaker("follower2", Some("ghost")),
         ];
         assert!(app.playing_entities().is_empty());
+    }
+
+    #[test]
+    fn test_toggle_source() {
+        let mut app = App::new();
+        assert_eq!(app.source_mode, SourceMode::Playlists);
+        app.toggle_source();
+        assert_eq!(app.source_mode, SourceMode::Podcasts);
+        app.toggle_source();
+        assert_eq!(app.source_mode, SourceMode::Playlists);
+    }
+
+    #[test]
+    fn test_toggle_source_resets_drill() {
+        let mut app = App::new();
+        app.podcast_drill = true;
+        app.toggle_source();
+        assert!(!app.podcast_drill);
+    }
+
+    #[test]
+    fn test_podcast_navigation() {
+        let mut app = App::new();
+        app.source_mode = SourceMode::Podcasts;
+        app.active_panel = Panel::Playlists;
+        app.podcasts = vec![
+            crate::api::Podcast { alias: "a".into(), name: "A".into(), url: "".into(), unplayed: 0 },
+            crate::api::Podcast { alias: "b".into(), name: "B".into(), url: "".into(), unplayed: 0 },
+        ];
+        app.next_in_list();
+        assert_eq!(app.podcast_index, 1);
+        app.next_in_list();
+        assert_eq!(app.podcast_index, 0);
     }
 }
