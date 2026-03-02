@@ -70,6 +70,16 @@ async fn run(terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>) -> Resu
         }
     }
 
+    // Load podcasts
+    if let Ok(podcasts) = client.get_podcasts().await {
+        app.podcasts = podcasts;
+    }
+    // Load skip config
+    if let Ok((fwd, back)) = client.get_skip_config().await {
+        app.skip_forward = fwd;
+        app.skip_back = back;
+    }
+
     // Background refresh — never blocks the event loop
     let (tx, mut rx) = tokio::sync::mpsc::channel::<Vec<Speaker>>(1);
     let refresh_client = Arc::clone(&client);
@@ -220,6 +230,35 @@ async fn execute_command(app: &mut App, client: &ApiClient, input: &str) -> Resu
             }
             app.set_status("The scrolls are refreshed. Reloaded config.yaml.", 3);
         }
+        Some(Command::Source) => {
+            app.toggle_source();
+        }
+        Some(Command::PodcastRefresh) => {
+            let _ = client.refresh_podcasts().await;
+            if let Ok(podcasts) = client.get_podcasts().await {
+                app.podcasts = podcasts;
+            }
+            app.set_status("The distant voices are refreshed — feeds updated.", 3);
+        }
+        Some(Command::Mark) => {
+            if let Some(ep) = app.selected_episode() {
+                let new_played = ep.played == 0;
+                let ep_id = ep.id.clone();
+                let ep_pos = ep.position;
+                let _ = client.save_episode_progress(&ep_id, ep_pos, new_played).await;
+                // Refresh episode list
+                if let Some(podcast) = app.selected_podcast() {
+                    let alias = podcast.alias.clone();
+                    if let Ok(episodes) = client.get_episodes(&alias).await {
+                        app.episodes = episodes;
+                    }
+                }
+                app.set_status(
+                    if new_played { "Marked as heard." } else { "Marked as unheard." },
+                    2,
+                );
+            }
+        }
         Some(Command::Unknown(_)) | None => {
             app.set_status("Speak, friend — but speak clearly.", 3);
         }
@@ -317,7 +356,33 @@ async fn handle_key(app: &mut App, client: &ApiClient, key: KeyEvent) -> Result<
         KeyCode::Down | KeyCode::Char('j') => app.next_in_list(),
 
         KeyCode::Enter => {
-            if let (Some(speaker_id), Some(playlist)) =
+            if app.source_mode == crate::app::SourceMode::Podcasts && app.active_panel == crate::app::Panel::Playlists {
+                if app.podcast_drill {
+                    // Play the selected episode
+                    if let (Some(speaker_id), Some(episode)) = (app.speaker_id(), app.selected_episode()) {
+                        let title = episode.title.clone();
+                        let url = episode.url.clone();
+                        let ep_id = episode.id.clone();
+                        let position = episode.position;
+                        let _ = client.play_uri(&speaker_id, &url, &title).await;
+                        if position > 0 {
+                            let _ = client.seek(&speaker_id, position).await;
+                        }
+                        app.current_episode_id = Some(ep_id);
+                        app.set_status(format!("Playing: {}", title), 3);
+                    }
+                } else {
+                    // Drill into episode list
+                    if let Some(podcast) = app.selected_podcast() {
+                        let alias = podcast.alias.clone();
+                        if let Ok(episodes) = client.get_episodes(&alias).await {
+                            app.episodes = episodes;
+                            app.episode_index = 0;
+                            app.podcast_drill = true;
+                        }
+                    }
+                }
+            } else if let (Some(speaker_id), Some(playlist)) =
                 (app.speaker_id(), app.selected_playlist())
             {
                 let _ = client.play(&speaker_id, &playlist.alias).await;
@@ -328,10 +393,18 @@ async fn handle_key(app: &mut App, client: &ApiClient, key: KeyEvent) -> Result<
 
         KeyCode::Char(' ') => {
             if let Some(sp) = app.selected_speaker() {
-                let id = sp.alias.as_deref().unwrap_or(&sp.name);
+                let id = sp.alias.as_deref().unwrap_or(&sp.name).to_string();
+                let is_playing = sp.state == "PLAYING";
+                let position = sp.track.as_ref().map(|t| t.position).unwrap_or(0);
                 match sp.state.as_str() {
-                    "PLAYING" => { let _ = client.pause(id).await; }
-                    _ => { let _ = client.resume(id).await; }
+                    "PLAYING" => { let _ = client.pause(&id).await; }
+                    _ => { let _ = client.resume(&id).await; }
+                }
+                // Save podcast progress on pause
+                if is_playing {
+                    if let Some(ep_id) = &app.current_episode_id {
+                        let _ = client.save_episode_progress(ep_id, position, false).await;
+                    }
                 }
             }
         }
@@ -368,6 +441,21 @@ async fn handle_key(app: &mut App, client: &ApiClient, key: KeyEvent) -> Result<
             }
         }
 
+        KeyCode::Char('f') | KeyCode::Right => {
+            if app.is_podcast_playing() {
+                if let Some(id) = app.speaker_id() {
+                    let _ = client.skip(&id, app.skip_forward).await;
+                }
+            }
+        }
+        KeyCode::Char('b') | KeyCode::Left => {
+            if app.is_podcast_playing() {
+                if let Some(id) = app.speaker_id() {
+                    let _ = client.skip(&id, -app.skip_back).await;
+                }
+            }
+        }
+
         KeyCode::Char('g') => {
             if app.is_grouped() {
                 let _ = client.ungroup_all().await;
@@ -380,6 +468,10 @@ async fn handle_key(app: &mut App, client: &ApiClient, key: KeyEvent) -> Result<
             app.volume_input = Some(String::new());
         }
 
+        KeyCode::Char('s') => {
+            app.toggle_source();
+        }
+
         KeyCode::Char(':') => {
             app.command_input = Some(String::new());
             app.volume_input = None; // mutually exclusive
@@ -390,6 +482,8 @@ async fn handle_key(app: &mut App, client: &ApiClient, key: KeyEvent) -> Result<
         KeyCode::Esc => {
             if app.help_open {
                 app.help_open = false;
+            } else if app.podcast_drill {
+                app.podcast_drill = false;
             }
         }
 

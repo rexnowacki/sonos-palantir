@@ -10,6 +10,9 @@ pub enum Command {
     Sleep(u32),
     SleepCancel,
     Reload,
+    Source,
+    PodcastRefresh,
+    Mark,
     Unknown(String),
 }
 
@@ -53,6 +56,15 @@ pub fn parse(input: &str) -> Option<Command> {
             }
         }
         "reload" => Some(Command::Reload),
+        "source" => Some(Command::Source),
+        "podcast" => {
+            if rest == "refresh" {
+                Some(Command::PodcastRefresh)
+            } else {
+                Some(Command::Unknown(input.to_string()))
+            }
+        }
+        "mark" => Some(Command::Mark),
         _ => Some(Command::Unknown(input.to_string())),
     }
 }
@@ -68,7 +80,7 @@ pub fn autocomplete(input: &str, playlist_names: &[String], speaker_names: &[Str
     if !input.contains(' ') {
         let commands = [
             "play", "vol", "group all", "ungroup", "next", "prev",
-            "sleep", "reload",
+            "sleep", "reload", "source", "podcast refresh", "mark",
         ];
         for cmd in &commands {
             if cmd.starts_with(input) && *cmd != input {
@@ -248,5 +260,25 @@ mod tests {
         let result = autocomplete("p alt", &names, &[]);
         // "p alt" has a space so it enters the play-fuzzy path
         assert_eq!(result, Some(" Wave".to_string()));
+    }
+
+    #[test]
+    fn test_parse_source() {
+        assert_eq!(parse("source"), Some(Command::Source));
+    }
+
+    #[test]
+    fn test_parse_podcast_refresh() {
+        assert_eq!(parse("podcast refresh"), Some(Command::PodcastRefresh));
+    }
+
+    #[test]
+    fn test_parse_mark() {
+        assert_eq!(parse("mark"), Some(Command::Mark));
+    }
+
+    #[test]
+    fn test_autocomplete_source() {
+        assert_eq!(autocomplete("so", &[], &[]), Some("urce".to_string()));
     }
 }
