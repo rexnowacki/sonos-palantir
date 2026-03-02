@@ -114,7 +114,16 @@ async def reload_config():
 def get_config():
     raw = manager.config.get("playlist_sort", "alphabetical")
     sort = raw if raw in ("alphabetical", "popularity") else "alphabetical"
-    return {"playlist_sort": sort}
+    skip_fwd = 30
+    skip_back = 10
+    if podcast_manager is not None:
+        skip_fwd = podcast_manager.skip_forward
+        skip_back = podcast_manager.skip_back
+    return {
+        "playlist_sort": sort,
+        "podcast_skip_forward": skip_fwd,
+        "podcast_skip_back": skip_back,
+    }
 
 
 @app.post("/play")
@@ -240,6 +249,8 @@ async def get_podcast_episodes(alias: str):
 def play_uri(req: PlayUriRequest):
     try:
         speaker = manager.get_coordinator(req.speaker)
+        from .sonos import _podcast_uris
+        _podcast_uris.add(req.uri)
         speaker.play_uri(req.uri, title=req.title)
         return {"status": "playing", "uri": req.uri}
     except KeyError as e:

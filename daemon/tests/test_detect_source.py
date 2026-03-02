@@ -31,3 +31,7 @@ def test_tidal():
 
 def test_amazon():
     assert _detect_source("x-sonosapi-hls-static:amazon-music:track") == "Amazon Music"
+
+
+def test_podcast():
+    assert _detect_source("x-sonos-podcast:https://example.com/ep1.mp3") == "Podcast"

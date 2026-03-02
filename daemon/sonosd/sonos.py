@@ -202,11 +202,16 @@ class SonosManager:
             return dict(self._playlist_map)
 
 
+_podcast_uris: set[str] = set()
+
+
 def _detect_source(uri: str) -> str:
     """Best-effort source detection from track URI."""
     if not uri:
         return ""
     uri_lower = uri.lower()
+    if uri in _podcast_uris or "x-sonos-podcast" in uri_lower:
+        return "Podcast"
     if "spotify" in uri_lower or "x-sonos-spotify" in uri_lower:
         return "Spotify"
     if "apple" in uri_lower or "raop" in uri_lower:
