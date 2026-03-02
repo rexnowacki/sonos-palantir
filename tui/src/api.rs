@@ -33,6 +33,31 @@ pub struct Playlist {
     pub favorite_name: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct Podcast {
+    pub alias: String,
+    pub name: String,
+    #[serde(default)]
+    pub url: String,
+    #[serde(default)]
+    pub unplayed: u32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Episode {
+    pub id: String,
+    pub title: String,
+    pub url: String,
+    #[serde(default)]
+    pub published: String,
+    #[serde(default)]
+    pub duration: u64,
+    #[serde(default)]
+    pub position: u64,
+    #[serde(default)]
+    pub played: u8,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct PlayRequest {
     pub speaker: String,
@@ -48,6 +73,32 @@ pub struct SpeakerRequest {
 pub struct VolumeRequest {
     pub speaker: String,
     pub volume: u8,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PlayUriRequest {
+    pub speaker: String,
+    pub uri: String,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SkipRequest {
+    pub speaker: String,
+    pub seconds: i32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SeekRequest {
+    pub speaker: String,
+    pub position: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct EpisodeProgressRequest {
+    pub episode_id: String,
+    pub position: u64,
+    pub played: bool,
 }
 
 pub struct ApiClient {
@@ -175,5 +226,81 @@ impl ApiClient {
             .post(format!("{}/reload", self.base_url))
             .send().await?;
         Ok(())
+    }
+
+    pub async fn get_podcasts(&self) -> anyhow::Result<Vec<Podcast>> {
+        let resp: serde_json::Value = self.client
+            .get(format!("{}/podcasts", self.base_url))
+            .send().await?
+            .json().await?;
+        let podcasts: Vec<Podcast> = serde_json::from_value(resp["podcasts"].clone())?;
+        Ok(podcasts)
+    }
+
+    pub async fn get_episodes(&self, alias: &str) -> anyhow::Result<Vec<Episode>> {
+        let resp: serde_json::Value = self.client
+            .get(format!("{}/podcasts/{}/episodes", self.base_url, alias))
+            .send().await?
+            .json().await?;
+        let episodes: Vec<Episode> = serde_json::from_value(resp["episodes"].clone())?;
+        Ok(episodes)
+    }
+
+    pub async fn play_uri(&self, speaker: &str, uri: &str, title: &str) -> anyhow::Result<()> {
+        self.client.post(format!("{}/play_uri", self.base_url))
+            .json(&PlayUriRequest {
+                speaker: speaker.to_string(),
+                uri: uri.to_string(),
+                title: title.to_string(),
+            })
+            .send().await?;
+        Ok(())
+    }
+
+    pub async fn skip(&self, speaker: &str, seconds: i32) -> anyhow::Result<()> {
+        self.client.post(format!("{}/skip", self.base_url))
+            .json(&SkipRequest {
+                speaker: speaker.to_string(),
+                seconds,
+            })
+            .send().await?;
+        Ok(())
+    }
+
+    pub async fn seek(&self, speaker: &str, position: u64) -> anyhow::Result<()> {
+        self.client.post(format!("{}/seek", self.base_url))
+            .json(&SeekRequest {
+                speaker: speaker.to_string(),
+                position,
+            })
+            .send().await?;
+        Ok(())
+    }
+
+    pub async fn save_episode_progress(&self, episode_id: &str, position: u64, played: bool) -> anyhow::Result<()> {
+        self.client.post(format!("{}/podcasts/episode/progress", self.base_url))
+            .json(&EpisodeProgressRequest {
+                episode_id: episode_id.to_string(),
+                position,
+                played,
+            })
+            .send().await?;
+        Ok(())
+    }
+
+    pub async fn refresh_podcasts(&self) -> anyhow::Result<()> {
+        self.client.post(format!("{}/podcasts/refresh", self.base_url))
+            .send().await?;
+        Ok(())
+    }
+
+    pub async fn get_skip_config(&self) -> anyhow::Result<(i32, i32)> {
+        let resp: serde_json::Value = self.client
+            .get(format!("{}/config", self.base_url))
+            .send().await?
+            .json().await?;
+        let fwd = resp["podcast_skip_forward"].as_i64().unwrap_or(30) as i32;
+        let back = resp["podcast_skip_back"].as_i64().unwrap_or(10) as i32;
+        Ok((fwd, back))
     }
 }
