@@ -49,6 +49,10 @@ Edit `daemon/config.yaml` to match your setup:
 playlists:
   altwave: "Alt Wave"      # short alias: exact Sonos Favorite name
 
+podcasts:
+  tpm: "https://feeds.example.com/thepublicmood.xml"
+  ycombinator: "https://feeds.example.com/yc.xml"
+
 speakers:
   cthulhu: "cthulhu"
   family: "Family Room"
@@ -59,9 +63,14 @@ host: "127.0.0.1"
 port: 9271
 
 # playlist_sort: popularity   # options: alphabetical (default), popularity
+# podcast_skip_forward: 30    # seconds (default 30)
+# podcast_skip_back: 10       # seconds (default 10)
+# podcast_refresh_minutes: 30 # feed refresh interval (default 30)
 ```
 
 Playlists must be added to Sonos Favorites via the Sonos iOS/Android app first. Any Favorites not in `config.yaml` are merged in automatically on startup.
+
+Podcasts use RSS feed URLs. Add them to the `podcasts` section with short aliases. The daemon fetches feeds on startup and refreshes every 30 minutes (configurable).
 
 Run the daemon:
 
@@ -93,6 +102,9 @@ cargo build --release
 | `v` | Set exact volume (type digits, Enter to confirm) |
 | `n` | Next track |
 | `p` | Previous track |
+| `s` | Toggle source (Playlists / Podcasts) |
+| `f` / `→` | Skip forward (podcast, default 30s) |
+| `b` / `←` | Skip back (podcast, default 10s) |
 | `g` | Toggle group all speakers |
 | `:` | Enter command mode (see below) |
 | `?` | Toggle help screen |
@@ -114,6 +126,9 @@ Press `:` to enter command mode. Ghost text autocomplete appears as you type for
 | `:prev` | Previous track |
 | `:sleep <minutes>` | Sleep timer — pauses all speakers after N minutes |
 | `:sleep cancel` | Cancel active sleep timer |
+| `:source` | Toggle Playlists / Podcasts panel |
+| `:podcast refresh` | Force re-fetch all podcast RSS feeds |
+| `:mark` | Toggle played/unplayed on selected episode |
 | `:reload` | Reload `config.yaml` immediately |
 
 Press `Esc` to cancel.
@@ -131,6 +146,7 @@ Press `Esc` to cancel.
 - **Play history** — tracks which playlists you play; set `playlist_sort: popularity` in `config.yaml` to sort by 7-day play count
 - **Sleep timer** — countdown shown in the status line; all speakers pause on expiry
 - **Config hot-reload** — automatic every 5 minutes, or on demand via `:reload`
+- **Podcast listener** — subscribe to RSS feeds in config.yaml, browse episodes, skip forward/back, auto-resume, progress tracking via SQLite
 - **LOTR error messages** — the status line speaks in the voice of Middle-earth
 
 ## Running tests
@@ -145,6 +161,6 @@ cd tui && cargo test
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.11+ (feedparser, aiosqlite)
 - Rust 1.70+
 - Sonos speakers on the same LAN (no VPN)
