@@ -80,6 +80,7 @@ class SonosManager:
 
         track = None
         if track_info.get("title"):
+            uri = track_info.get("uri", "")
             track = {
                 "title": track_info.get("title", ""),
                 "artist": track_info.get("artist", ""),
@@ -87,6 +88,8 @@ class SonosManager:
                 "duration": _parse_duration(track_info.get("duration", "0:00:00")),
                 "position": _parse_duration(track_info.get("position", "0:00:00")),
                 "art_uri": track_info.get("album_art", ""),
+                "source": _detect_source(uri),
+                "quality": "",
             }
 
         coordinator_sp = speaker.group.coordinator if speaker.group else None
@@ -96,6 +99,7 @@ class SonosManager:
         if track is None and coordinator_sp and coordinator_sp != speaker:
             coord_track = coordinator_sp.get_current_track_info()
             if coord_track.get("title"):
+                coord_uri = coord_track.get("uri", "")
                 track = {
                     "title": coord_track.get("title", ""),
                     "artist": coord_track.get("artist", ""),
@@ -103,6 +107,8 @@ class SonosManager:
                     "duration": _parse_duration(coord_track.get("duration", "0:00:00")),
                     "position": _parse_duration(coord_track.get("position", "0:00:00")),
                     "art_uri": coord_track.get("album_art", ""),
+                    "source": _detect_source(coord_uri),
+                    "quality": "",
                 }
 
         return {
@@ -194,6 +200,32 @@ class SonosManager:
     def get_playlists_map(self) -> dict:
         with self._lock:
             return dict(self._playlist_map)
+
+
+def _detect_source(uri: str) -> str:
+    """Best-effort source detection from track URI."""
+    if not uri:
+        return ""
+    uri_lower = uri.lower()
+    if "spotify" in uri_lower or "x-sonos-spotify" in uri_lower:
+        return "Spotify"
+    if "apple" in uri_lower or "raop" in uri_lower:
+        return "Apple Music"
+    if "amazon" in uri_lower:
+        return "Amazon Music"
+    if "tidal" in uri_lower:
+        return "Tidal"
+    if "soundcloud" in uri_lower:
+        return "SoundCloud"
+    if "plex" in uri_lower:
+        return "Plex"
+    if "x-file-cifs" in uri_lower or "x-smb" in uri_lower:
+        return "Local Library"
+    if "x-rincon-stream" in uri_lower:
+        return "Line-In"
+    if "aac" in uri_lower or "flac" in uri_lower or "mp3" in uri_lower:
+        return "Local Library"
+    return ""
 
 
 def _parse_duration(time_str: str) -> int:
