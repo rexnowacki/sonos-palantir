@@ -287,25 +287,26 @@ fn render_speaker_row(lines: &mut Vec<Line>, sp: &crate::api::Speaker, selected:
 fn draw_playlists(f: &mut Frame, app: &App, area: Rect) {
     let active = app.active_panel == Panel::Playlists;
     let block = panel_block("Playlists", active);
+    let inner_width = area.width.saturating_sub(2) as usize;
 
     let items: Vec<ListItem> = app.playlists.iter().enumerate().map(|(i, pl)| {
-        let style = if i == app.playlist_index && active {
+        let selected = i == app.playlist_index;
+        let style = if selected && active {
             Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(FG)
         };
 
+        let marker = if selected { "▸" } else { " " };
+        let display = truncate(&pl.alias, inner_width.saturating_sub(4));
+
         let line = Line::from(vec![
-            Span::raw(if i == app.playlist_index { " ► " } else { "   " }),
-            Span::styled(format!("{:<10}", pl.alias), style),
-            Span::styled(
-                truncate(&pl.favorite_name, 24),
-                Style::default().fg(DIM),
-            ),
+            Span::styled(format!(" {} ", marker), if selected { Style::default().fg(ACCENT) } else { Style::default().fg(DIM) }),
+            Span::styled(display, style),
         ]);
 
         let mut item = ListItem::new(line);
-        if i == app.playlist_index && active {
+        if selected && active {
             item = item.style(Style::default().bg(HIGHLIGHT_BG));
         }
         item
@@ -313,7 +314,7 @@ fn draw_playlists(f: &mut Frame, app: &App, area: Rect) {
 
     let list = List::new(items)
         .block(block)
-        .highlight_style(Style::default()); // don't override our manual item styling
+        .highlight_style(Style::default());
 
     let mut state = ListState::default();
     if !app.playlists.is_empty() {
