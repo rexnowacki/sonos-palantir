@@ -187,119 +187,101 @@ fn panel_block(title: &str, active: bool) -> Block<'_> {
         .style(Style::default().bg(BG))
 }
 
-fn draw_speakers(f: &mut Frame, app: &App, area: Rect) {
-    let active = app.active_panel == Panel::Speakers;
-    let block = panel_block("Speakers", active);
-
-    if app.is_grouped() {
-        draw_topology(f, app, block, area);
+/// Returns a color for the volume bar: green (0-50), yellow (51-80), red (81-100).
+fn volume_color(vol: u8) -> Color {
+    if vol <= 50 {
+        Color::Rgb(120, 220, 140)
+    } else if vol <= 80 {
+        Color::Rgb(240, 200, 80)
     } else {
-        draw_speaker_list(f, app, block, area);
+        Color::Rgb(220, 80, 80)
     }
 }
 
-fn draw_speaker_list(f: &mut Frame, app: &App, block: Block, area: Rect) {
-    let active = app.active_panel == Panel::Speakers;
-    let items: Vec<ListItem> = app.speakers.iter().enumerate().map(|(i, sp)| {
-        let state_icon = match sp.state.as_str() {
-            "PLAYING" => Span::styled("▶", Style::default().fg(PLAYING)),
-            "PAUSED_PLAYBACK" => Span::styled("⏸", Style::default().fg(PAUSED)),
-            _ => Span::styled("·", Style::default().fg(DIM)),
-        };
-        let display_name = sp.alias.as_deref().unwrap_or(&sp.name);
-        let name_style = if i == app.speaker_index && active {
-            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(FG)
-        };
-        let group_tag = match &sp.group_coordinator {
-            None => Span::raw("  "),
-            Some(coord) if coord == &sp.name => Span::styled(" ◈", Style::default().fg(ACCENT)),
-            Some(_) => Span::styled(" ↳", Style::default().fg(DIM)),
-        };
-        let line = Line::from(vec![
-            Span::raw(if i == app.speaker_index { " ► " } else { "   " }),
-            Span::styled(format!("{:<14}", display_name), name_style),
-            group_tag,
-            Span::styled(format!(" {:>3}", sp.volume), Style::default().fg(DIM)),
-            Span::raw("  "),
-            state_icon,
-        ]);
-        let mut item = ListItem::new(line);
-        if i == app.speaker_index && active {
-            item = item.style(Style::default().bg(HIGHLIGHT_BG));
-        }
-        item
-    }).collect();
-    let list = List::new(items).block(block);
-    f.render_widget(list, area);
+/// Render a volume bar string using block characters.
+fn volume_bar(vol: u8, width: usize) -> (String, Color) {
+    let color = volume_color(vol);
+    let filled = (vol as usize * width) / 100;
+    let remainder = (vol as usize * width) % 100;
+    let partial = if filled < width && remainder > 0 {
+        if remainder > 66 { "▓" } else if remainder > 33 { "▒" } else { "░" }
+    } else {
+        ""
+    };
+    let empty = width.saturating_sub(filled).saturating_sub(if partial.is_empty() { 0 } else { 1 });
+    let bar = format!("{}{}{}", "█".repeat(filled), partial, " ".repeat(empty));
+    (bar, color)
 }
 
-fn draw_topology(f: &mut Frame, app: &App, block: Block<'_>, area: Rect) {
+fn draw_speakers(f: &mut Frame, app: &App, area: Rect) {
+    let active = app.active_panel == Panel::Speakers;
+    let block = panel_block("Rooms", active);
     let inner = block.inner(area);
     f.render_widget(block, area);
 
     let mut lines: Vec<Line> = vec![];
+    let bar_width = (inner.width as usize).saturating_sub(6);
 
-    for coord in app.coordinators() {
-        let display = coord.alias.as_deref().unwrap_or(&coord.name);
-        let members = app.group_members_of(&coord.name);
-        let max_name_len = members.iter()
-            .map(|s| s.alias.as_deref().unwrap_or(&s.name).len())
-            .max()
-            .unwrap_or(0)
-            .max(display.len());
-        // bar width = max_name_len + 4 (tag + space + state) + 2 (║ inner padding) = +6
-        let bar = "═".repeat(max_name_len + 6);
-
-        lines.push(Line::from(Span::styled(
-            format!(" ╔{}╗", bar),
-            Style::default().fg(ACCENT),
-        )));
-        for m in &members {
-            let name = m.alias.as_deref().unwrap_or(&m.name);
-            let tag = if m.group_coordinator.as_deref() == Some(m.name.as_str()) {
-                " ◈"
-            } else {
-                " ↳"
-            };
-            let (state_str, state_color) = match m.state.as_str() {
-                "PLAYING"          => ("▶", PLAYING),
-                "PAUSED_PLAYBACK"  => ("⏸", PAUSED),
-                _                  => ("·", DIM),
-            };
+    if app.is_grouped() {
+        for coord in app.coordinators() {
+            let members = app.group_members_of(&coord.name);
+            let member_names: Vec<&str> = members.iter()
+                .map(|m| m.alias.as_deref().unwrap_or(&m.name))
+                .collect();
             lines.push(Line::from(vec![
-                Span::styled(" ║ ", Style::default().fg(ACCENT)),
-                Span::styled(format!("{:<width$}", name, width = max_name_len), Style::default().fg(FG)),
-                Span::styled(tag, Style::default().fg(DIM)),
-                Span::raw(" "),
-                Span::styled(state_str, Style::default().fg(state_color)),
-                Span::styled(" ║", Style::default().fg(ACCENT)),
+                Span::styled(" GROUPED ", Style::default().fg(DIM)),
+                Span::styled(member_names.join(" + "), Style::default().fg(ACCENT)),
             ]));
+            for m in &members {
+                let sp_index = app.speakers.iter().position(|s| s.name == m.name);
+                let is_selected = active && sp_index == Some(app.speaker_index);
+                render_speaker_row(&mut lines, m, is_selected, bar_width);
+            }
         }
-        lines.push(Line::from(Span::styled(
-            format!(" ╚{}╝", bar),
-            Style::default().fg(ACCENT),
-        )));
-        lines.push(Line::from(""));
-    }
-
-    for sp in app.solo_speakers() {
-        let name = sp.alias.as_deref().unwrap_or(&sp.name);
-        let state = match sp.state.as_str() {
-            "PLAYING" => Span::styled("▶", Style::default().fg(PLAYING)),
-            "PAUSED_PLAYBACK" => Span::styled("⏸", Style::default().fg(PAUSED)),
-            _ => Span::styled("·", Style::default().fg(DIM)),
-        };
-        lines.push(Line::from(vec![
-            Span::styled(format!("   {} ", name), Style::default().fg(DIM)),
-            state,
-            Span::styled(" (solo)", Style::default().fg(DIM)),
-        ]));
+        for sp in app.solo_speakers() {
+            let sp_index = app.speakers.iter().position(|s| s.name == sp.name);
+            let is_selected = active && sp_index == Some(app.speaker_index);
+            render_speaker_row(&mut lines, sp, is_selected, bar_width);
+        }
+    } else {
+        for (i, sp) in app.speakers.iter().enumerate() {
+            let is_selected = active && i == app.speaker_index;
+            render_speaker_row(&mut lines, sp, is_selected, bar_width);
+        }
     }
 
     let para = Paragraph::new(lines);
     f.render_widget(para, inner);
+}
+
+fn render_speaker_row(lines: &mut Vec<Line>, sp: &crate::api::Speaker, selected: bool, bar_width: usize) {
+    let name = sp.alias.as_deref().unwrap_or(&sp.name);
+    let marker = if selected { "▸" } else { " " };
+    let (state_icon, state_color) = match sp.state.as_str() {
+        "PLAYING" => ("▶", PLAYING),
+        "PAUSED_PLAYBACK" => ("‖", PAUSED),
+        _ => ("·", DIM),
+    };
+    let name_style = if selected {
+        Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(FG)
+    };
+
+    let name_line = Line::from(vec![
+        Span::styled(format!(" {} ", marker), if selected { Style::default().fg(ACCENT) } else { Style::default().fg(DIM) }),
+        Span::styled(format!("{:<12}", name), name_style),
+        Span::styled(format!(" {} ", state_icon), Style::default().fg(state_color)),
+        Span::styled(format!("{:>3}", sp.volume), Style::default().fg(DIM)),
+    ]);
+    lines.push(name_line);
+
+    // Volume bar below speaker name
+    let (bar, color) = volume_bar(sp.volume, bar_width);
+    lines.push(Line::from(vec![
+        Span::raw("   "),
+        Span::styled(bar, Style::default().fg(color)),
+    ]));
 }
 
 fn draw_playlists(f: &mut Frame, app: &App, area: Rect) {
