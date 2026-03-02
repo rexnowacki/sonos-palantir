@@ -84,16 +84,16 @@ pub fn autocomplete(input: &str, playlist_names: &[String], speaker_names: &[Str
         return fuzzy_complete(rest, playlist_names);
     }
 
-    // :vol <speaker> <number> — complete speaker name as first arg
+    // :vol <speaker> <number> — complete speaker name as first arg, append space for number
     if cmd == "vol" || cmd == "volume" {
-        // If rest has no space yet, we're completing the first arg (speaker or number)
         if !rest.contains(' ') && !rest.is_empty() {
-            // Don't complete if it's purely numeric (user is typing a volume number)
             if rest.parse::<u8>().is_err() {
-                // Also offer "all" as a completion target
                 let mut names = speaker_names.to_vec();
                 names.push("all".to_string());
-                return fuzzy_complete(rest, &names);
+                if let Some(ghost) = fuzzy_complete(rest, &names) {
+                    // Append trailing space so Tab gives ":vol cthulhu " ready for number
+                    return Some(format!("{} ", ghost));
+                }
             }
         }
     }
@@ -104,16 +104,18 @@ pub fn autocomplete(input: &str, playlist_names: &[String], speaker_names: &[Str
 /// Fuzzy-match `query` against `candidates`, returning ghost text suffix.
 fn fuzzy_complete(query: &str, candidates: &[String]) -> Option<String> {
     let q = query.to_lowercase();
+    // Exact match — nothing left to complete
+    if candidates.iter().any(|n| n.to_lowercase() == q) {
+        return None;
+    }
     // Prefix match
     if let Some(m) = candidates.iter().find(|n| n.to_lowercase().starts_with(&q)) {
-        if m.to_lowercase() != q {
-            let prefix_byte_len: usize = m.chars()
-                .zip(m.to_lowercase().chars())
-                .take(q.chars().count())
-                .map(|(orig_c, _)| orig_c.len_utf8())
-                .sum();
-            return Some(m[prefix_byte_len..].to_string());
-        }
+        let prefix_byte_len: usize = m.chars()
+            .zip(m.to_lowercase().chars())
+            .take(q.chars().count())
+            .map(|(orig_c, _)| orig_c.len_utf8())
+            .sum();
+        return Some(m[prefix_byte_len..].to_string());
     }
     // Contains match fallback
     if let Some(m) = candidates.iter().find(|n| n.to_lowercase().contains(&q)) {
@@ -206,9 +208,16 @@ mod tests {
     #[test]
     fn test_autocomplete_vol_speaker() {
         let speakers = vec!["cthulhu".to_string(), "family".to_string()];
-        assert_eq!(autocomplete("vol cth", &[], &speakers), Some("ulhu".to_string()));
-        assert_eq!(autocomplete("vol fam", &[], &speakers), Some("ily".to_string()));
-        assert_eq!(autocomplete("vol al", &[], &speakers), Some("l".to_string())); // "all"
+        assert_eq!(autocomplete("vol cth", &[], &speakers), Some("ulhu ".to_string()));
+        assert_eq!(autocomplete("vol fam", &[], &speakers), Some("ily ".to_string()));
+        assert_eq!(autocomplete("vol al", &[], &speakers), Some("l ".to_string())); // "all"
+    }
+
+    #[test]
+    fn test_autocomplete_vol_exact_match_returns_none() {
+        let speakers = vec!["cthulhu".to_string()];
+        // After completing, no more ghost text
+        assert_eq!(autocomplete("vol cthulhu ", &[], &speakers), None);
     }
 
     #[test]
