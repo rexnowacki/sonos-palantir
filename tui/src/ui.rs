@@ -289,6 +289,10 @@ fn render_speaker_row(lines: &mut Vec<Line>, sp: &crate::api::Speaker, selected:
 
 fn draw_playlists(f: &mut Frame, app: &App, area: Rect) {
     let active = app.active_panel == Panel::Playlists;
+    if app.source_mode == crate::app::SourceMode::Podcasts {
+        draw_podcasts_panel(f, app, area, active);
+        return;
+    }
     let block = panel_block("Playlists", active);
     let inner_width = area.width.saturating_sub(2) as usize;
 
@@ -324,6 +328,107 @@ fn draw_playlists(f: &mut Frame, app: &App, area: Rect) {
         state.select(Some(app.playlist_index));
     }
     f.render_stateful_widget(list, area, &mut state);
+}
+
+fn draw_podcasts_panel(f: &mut Frame, app: &App, area: Rect, active: bool) {
+    if app.podcast_drill {
+        // Episode list view
+        let podcast_name = app.selected_podcast()
+            .map(|p| p.name.clone())
+            .unwrap_or_else(|| "Episodes".to_string());
+        let block = panel_block(&podcast_name, active);
+        let inner_width = area.width.saturating_sub(2) as usize;
+
+        let items: Vec<ListItem> = app.episodes.iter().enumerate().map(|(i, ep)| {
+            let selected = i == app.episode_index;
+            let style = if selected && active {
+                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)
+            } else if ep.played == 1 {
+                Style::default().fg(DIM)
+            } else {
+                Style::default().fg(FG)
+            };
+
+            let marker = if selected { "▸" } else { " " };
+            let played_marker = if ep.played == 1 { "✓" } else { " " };
+            let duration_str = format_time(ep.duration);
+            let title_max = inner_width.saturating_sub(12);
+            let title = truncate(&ep.title, title_max);
+
+            let line = Line::from(vec![
+                Span::styled(
+                    format!(" {} ", marker),
+                    if selected { Style::default().fg(ACCENT) } else { Style::default().fg(DIM) },
+                ),
+                Span::styled(title, style),
+                Span::styled(format!(" {} ", played_marker), Style::default().fg(PLAYING)),
+                Span::styled(duration_str, Style::default().fg(DIM)),
+            ]);
+
+            let mut item = ListItem::new(line);
+            if selected && active {
+                item = item.style(Style::default().bg(HIGHLIGHT_BG));
+            }
+            item
+        }).collect();
+
+        let list = List::new(items)
+            .block(block)
+            .highlight_style(Style::default());
+
+        let mut state = ListState::default();
+        if !app.episodes.is_empty() {
+            state.select(Some(app.episode_index));
+        }
+        f.render_stateful_widget(list, area, &mut state);
+    } else {
+        // Podcast list view
+        let block = panel_block("Podcasts", active);
+        let inner_width = area.width.saturating_sub(2) as usize;
+
+        let items: Vec<ListItem> = app.podcasts.iter().enumerate().map(|(i, pod)| {
+            let selected = i == app.podcast_index;
+            let style = if selected && active {
+                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(FG)
+            };
+
+            let marker = if selected { "▸" } else { " " };
+            let badge = if pod.unplayed > 0 {
+                format!("●{}", pod.unplayed)
+            } else {
+                String::new()
+            };
+            let name_max = inner_width.saturating_sub(badge.len() + 6);
+            let name = truncate(&pod.name, name_max);
+
+            let line = Line::from(vec![
+                Span::styled(
+                    format!(" {} ", marker),
+                    if selected { Style::default().fg(ACCENT) } else { Style::default().fg(DIM) },
+                ),
+                Span::styled(name, style),
+                Span::styled(format!(" {}", badge), Style::default().fg(PLAYING)),
+            ]);
+
+            let mut item = ListItem::new(line);
+            if selected && active {
+                item = item.style(Style::default().bg(HIGHLIGHT_BG));
+            }
+            item
+        }).collect();
+
+        let list = List::new(items)
+            .block(block)
+            .highlight_style(Style::default());
+
+        let mut state = ListState::default();
+        if !app.podcasts.is_empty() {
+            state.select(Some(app.podcast_index));
+        }
+        f.render_stateful_widget(list, area, &mut state);
+    }
 }
 
 fn draw_now_playing(f: &mut Frame, app: &App, area: Rect) {
@@ -544,7 +649,7 @@ fn draw_help_bar(f: &mut Frame, app: &App, area: Rect) {
         return;
     }
 
-    let help = Line::from(vec![
+    let mut help_spans = vec![
         Span::styled(" Tab", Style::default().fg(ACCENT)),
         Span::styled(" panel  ", Style::default().fg(DIM)),
         Span::styled("↑↓", Style::default().fg(ACCENT)),
@@ -555,19 +660,30 @@ fn draw_help_bar(f: &mut Frame, app: &App, area: Rect) {
         Span::styled(" pause  ", Style::default().fg(DIM)),
         Span::styled("+/-", Style::default().fg(ACCENT)),
         Span::styled(" vol  ", Style::default().fg(DIM)),
-        Span::styled("v", Style::default().fg(ACCENT)),
-        Span::styled(" vol#  ", Style::default().fg(DIM)),
+        Span::styled("s", Style::default().fg(ACCENT)),
+        Span::styled(" source  ", Style::default().fg(DIM)),
+    ];
+
+    if app.is_podcast_playing() {
+        help_spans.push(Span::styled("f/→", Style::default().fg(ACCENT)));
+        help_spans.push(Span::styled(format!(" +{}s  ", app.skip_forward), Style::default().fg(DIM)));
+        help_spans.push(Span::styled("b/←", Style::default().fg(ACCENT)));
+        help_spans.push(Span::styled(format!(" -{}s  ", app.skip_back), Style::default().fg(DIM)));
+    } else {
+        help_spans.push(Span::styled("n/p", Style::default().fg(ACCENT)));
+        help_spans.push(Span::styled(" track  ", Style::default().fg(DIM)));
+    }
+
+    help_spans.extend([
         Span::styled(":", Style::default().fg(ACCENT)),
         Span::styled(" cmd  ", Style::default().fg(DIM)),
-        Span::styled("n/p", Style::default().fg(ACCENT)),
-        Span::styled(" track  ", Style::default().fg(DIM)),
-        Span::styled("g", Style::default().fg(ACCENT)),
-        Span::styled(" group  ", Style::default().fg(DIM)),
         Span::styled("?", Style::default().fg(ACCENT)),
         Span::styled(" help  ", Style::default().fg(DIM)),
         Span::styled("q", Style::default().fg(ACCENT)),
         Span::styled(" quit", Style::default().fg(DIM)),
     ]);
+
+    let help = Line::from(help_spans);
 
     let block = Block::default()
         .borders(Borders::ALL)
@@ -608,12 +724,21 @@ fn draw_help_overlay(f: &mut Frame) {
         Line::from(vec![Span::styled("  GROUPS", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))]),
         Line::from(vec![Span::styled("  g          ", Style::default().fg(ACCENT)), Span::styled("Toggle group all speakers — assemble the Fellowship", Style::default().fg(FG))]),
         Line::from(""),
+        Line::from(vec![Span::styled("  PODCASTS", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))]),
+        Line::from(vec![Span::styled("  s          ", Style::default().fg(ACCENT)), Span::styled("Toggle source — Playlists / Podcasts", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  f / →      ", Style::default().fg(ACCENT)), Span::styled("Skip forward (when podcast playing)", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  b / ←      ", Style::default().fg(ACCENT)), Span::styled("Skip back (when podcast playing)", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  :mark      ", Style::default().fg(ACCENT)), Span::styled("Toggle played/unplayed on selected episode", Style::default().fg(FG))]),
+        Line::from(""),
         Line::from(vec![Span::styled("  COMMAND MODE  (press : to enter)", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))]),
         Line::from(vec![Span::styled("  :play <name> ", Style::default().fg(ACCENT)), Span::styled("Play a favorite — fuzzy matched", Style::default().fg(FG))]),
         Line::from(vec![Span::styled("  :vol <0-100> ", Style::default().fg(ACCENT)), Span::styled("Set exact volume", Style::default().fg(FG))]),
         Line::from(vec![Span::styled("  :group all   ", Style::default().fg(ACCENT)), Span::styled("Group all speakers", Style::default().fg(FG))]),
         Line::from(vec![Span::styled("  :sleep <min> ", Style::default().fg(ACCENT)), Span::styled("Sleep timer — pause all after N minutes", Style::default().fg(FG))]),
         Line::from(vec![Span::styled("  :reload      ", Style::default().fg(ACCENT)), Span::styled("Reload config — a wizard is never stale", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  :source      ", Style::default().fg(ACCENT)), Span::styled("Toggle Playlists / Podcasts panel", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  :podcast ref ", Style::default().fg(ACCENT)), Span::styled("Refresh podcast feeds", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  :mark        ", Style::default().fg(ACCENT)), Span::styled("Toggle played / unplayed on episode", Style::default().fg(FG))]),
         Line::from(vec![Span::styled("  Tab          ", Style::default().fg(ACCENT)), Span::styled("Accept ghost text autocomplete suggestion", Style::default().fg(FG))]),
         Line::from(""),
         Line::from(vec![Span::styled("  ?            ", Style::default().fg(ACCENT)), Span::styled("Toggle this help screen", Style::default().fg(FG))]),
