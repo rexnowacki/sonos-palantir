@@ -28,13 +28,51 @@ class GroupRequest(BaseModel):
     speakers: list[str]
 
 
+class PlayUriRequest(BaseModel):
+    speaker: str
+    uri: str
+    title: str = ""
+
+
+class SkipRequest(BaseModel):
+    speaker: str
+    seconds: int
+
+
+class SeekRequest(BaseModel):
+    speaker: str
+    position: int
+
+
+class EpisodeProgressRequest(BaseModel):
+    episode_id: str
+    position: int
+    played: bool = False
+
+
+podcast_manager = None  # PodcastManager, set on startup
+
+
 @app.on_event("startup")
-def startup():
-    global manager
+async def startup():
+    global manager, podcast_manager
     config_path = Path(__file__).parent.parent / "config.yaml"
     with open(config_path) as f:
         config = yaml.safe_load(f)
     manager = SonosManager(config)
+
+    from .podcast import PodcastManager
+    podcasts = config.get("podcasts", {})
+    podcast_manager = PodcastManager(
+        podcasts=podcasts,
+        skip_forward=config.get("podcast_skip_forward", 30),
+        skip_back=config.get("podcast_skip_back", 10),
+        refresh_minutes=config.get("podcast_refresh_minutes", 30),
+    )
+    await podcast_manager.init_db()
+    if podcasts:
+        await podcast_manager.refresh_all_feeds()
+        podcast_manager.start_background_refresh()
 
 
 @app.get("/speakers")
@@ -63,8 +101,12 @@ def get_playlists():
 
 
 @app.post("/reload")
-def reload_config():
+async def reload_config():
     manager.reload_config()
+    if podcast_manager is not None:
+        podcast_manager.podcasts = manager.config.get("podcasts", {})
+        podcast_manager.skip_forward = manager.config.get("podcast_skip_forward", 30)
+        podcast_manager.skip_back = manager.config.get("podcast_skip_back", 10)
     return {"status": "reloaded"}
 
 
@@ -176,6 +218,80 @@ def prev_track(req: SpeakerRequest):
         raise HTTPException(404, str(e))
     except SoCoUPnPException as e:
         raise HTTPException(422, str(e))
+
+
+@app.get("/podcasts")
+async def get_podcasts():
+    if podcast_manager is None:
+        return {"podcasts": []}
+    podcasts = await podcast_manager.list_podcasts()
+    return {"podcasts": podcasts}
+
+
+@app.get("/podcasts/{alias}/episodes")
+async def get_podcast_episodes(alias: str):
+    if podcast_manager is None:
+        return {"episodes": []}
+    episodes = await podcast_manager.list_episodes(alias)
+    return {"episodes": episodes}
+
+
+@app.post("/play_uri")
+def play_uri(req: PlayUriRequest):
+    try:
+        speaker = manager.get_coordinator(req.speaker)
+        speaker.play_uri(req.uri, title=req.title)
+        return {"status": "playing", "uri": req.uri}
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.post("/skip")
+def skip(req: SkipRequest):
+    try:
+        speaker = manager.get_coordinator(req.speaker)
+        track_info = speaker.get_current_track_info()
+        from .sonos import _parse_duration
+        current = _parse_duration(track_info.get("position", "0:00:00"))
+        duration = _parse_duration(track_info.get("duration", "0:00:00"))
+        target = max(0, min(current + req.seconds, duration))
+        h = target // 3600
+        m = (target % 3600) // 60
+        s = target % 60
+        speaker.seek(f"{h}:{m:02}:{s:02}")
+        return {"status": "ok", "position": target}
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.post("/seek")
+def seek(req: SeekRequest):
+    try:
+        speaker = manager.get_coordinator(req.speaker)
+        pos = max(0, req.position)
+        h = pos // 3600
+        m = (pos % 3600) // 60
+        s = pos % 60
+        speaker.seek(f"{h}:{m:02}:{s:02}")
+        return {"status": "ok", "position": pos}
+    except KeyError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.post("/podcasts/episode/progress")
+async def save_episode_progress(req: EpisodeProgressRequest):
+    if podcast_manager is None:
+        raise HTTPException(503, "Podcast manager not initialized")
+    await podcast_manager.save_progress(req.episode_id, req.position, req.played)
+    return {"status": "saved"}
+
+
+@app.post("/podcasts/refresh")
+async def refresh_podcasts():
+    if podcast_manager is None:
+        raise HTTPException(503, "Podcast manager not initialized")
+    await podcast_manager.refresh_all_feeds()
+    return {"status": "refreshed"}
 
 
 def main():

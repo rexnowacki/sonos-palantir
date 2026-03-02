@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
@@ -142,3 +143,115 @@ def test_reload_endpoint_returns_200():
     resp = client.post("/reload")
     assert resp.status_code == 200
     assert resp.json()["status"] == "reloaded"
+
+
+def _make_podcast_client():
+    """Build a TestClient with mocked SonosManager + real PodcastManager (temp DB)."""
+    import tempfile, os
+    from sonosd.podcast import PodcastManager
+
+    client, mock_manager, mock_speaker = _make_client()
+
+    db_path = os.path.join(tempfile.mkdtemp(), "test.db")
+    pm = PodcastManager(
+        podcasts={"testpod": "https://example.com/feed.xml"},
+        db_path=db_path,
+        skip_forward=30,
+        skip_back=10,
+    )
+    asyncio.get_event_loop().run_until_complete(pm.init_db())
+    asyncio.get_event_loop().run_until_complete(pm.upsert_episodes("testpod", [
+        {"id": "g1", "title": "Episode 1", "url": "https://example.com/ep1.mp3",
+         "published": "2026-03-01T00:00:00", "duration": 3600},
+        {"id": "g2", "title": "Episode 2", "url": "https://example.com/ep2.mp3",
+         "published": "2026-03-02T00:00:00", "duration": 1800},
+    ]))
+
+    import sonosd.server as server_module
+    server_module.podcast_manager = pm
+
+    return client, mock_manager, mock_speaker, pm
+
+
+def test_get_podcasts():
+    client, _, _, _ = _make_podcast_client()
+    resp = client.get("/podcasts")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["podcasts"]) == 1
+    assert data["podcasts"][0]["alias"] == "testpod"
+    assert data["podcasts"][0]["unplayed"] == 2
+
+
+def test_get_podcast_episodes():
+    client, _, _, _ = _make_podcast_client()
+    resp = client.get("/podcasts/testpod/episodes")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["episodes"]) == 2
+    assert data["episodes"][0]["title"] == "Episode 2"
+
+
+def test_get_podcast_episodes_unknown_returns_empty():
+    client, _, _, _ = _make_podcast_client()
+    resp = client.get("/podcasts/unknown/episodes")
+    assert resp.status_code == 200
+    assert len(resp.json()["episodes"]) == 0
+
+
+def test_play_uri():
+    client, _, mock_speaker, _ = _make_podcast_client()
+    resp = client.post("/play_uri", json={
+        "speaker": "cthulhu",
+        "uri": "https://example.com/ep1.mp3",
+        "title": "Episode 1",
+    })
+    assert resp.status_code == 200
+    mock_speaker.play_uri.assert_called_once()
+
+
+def test_skip_forward():
+    client, _, mock_speaker, _ = _make_podcast_client()
+    mock_speaker.get_current_track_info.return_value = {
+        "position": "0:05:00",
+        "duration": "1:00:00",
+    }
+    resp = client.post("/skip", json={"speaker": "cthulhu", "seconds": 30})
+    assert resp.status_code == 200
+    mock_speaker.seek.assert_called_once()
+
+
+def test_skip_backward_clamps_to_zero():
+    client, _, mock_speaker, _ = _make_podcast_client()
+    mock_speaker.get_current_track_info.return_value = {
+        "position": "0:00:05",
+        "duration": "1:00:00",
+    }
+    resp = client.post("/skip", json={"speaker": "cthulhu", "seconds": -30})
+    assert resp.status_code == 200
+    mock_speaker.seek.assert_called_once_with("0:00:00")
+
+
+def test_seek_absolute():
+    client, _, mock_speaker, _ = _make_podcast_client()
+    resp = client.post("/seek", json={"speaker": "cthulhu", "position": 300})
+    assert resp.status_code == 200
+    mock_speaker.seek.assert_called_once_with("0:05:00")
+
+
+def test_save_episode_progress():
+    client, _, _, pm = _make_podcast_client()
+    resp = client.post("/podcasts/episode/progress", json={
+        "episode_id": "g1",
+        "position": 1200,
+        "played": False,
+    })
+    assert resp.status_code == 200
+    ep = asyncio.get_event_loop().run_until_complete(pm.get_episode("g1"))
+    assert ep["position"] == 1200
+
+
+def test_podcast_refresh():
+    client, _, _, pm = _make_podcast_client()
+    resp = client.post("/podcasts/refresh")
+    assert resp.status_code == 200
