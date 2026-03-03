@@ -114,6 +114,9 @@ pub fn draw(f: &mut Frame, app: &App) {
     if app.help_open {
         draw_help_overlay(f);
     }
+    if app.episode_popup {
+        draw_episode_popup(f, app);
+    }
 }
 
 const TOP_BAR_BG: Color = Color::Rgb(30, 30, 45);
@@ -728,6 +731,7 @@ fn draw_help_overlay(f: &mut Frame) {
         Line::from(vec![Span::styled("  s          ", Style::default().fg(ACCENT)), Span::styled("Toggle source — Playlists / Podcasts", Style::default().fg(FG))]),
         Line::from(vec![Span::styled("  f / →      ", Style::default().fg(ACCENT)), Span::styled("Skip forward (when podcast playing)", Style::default().fg(FG))]),
         Line::from(vec![Span::styled("  b / ←      ", Style::default().fg(ACCENT)), Span::styled("Skip back (when podcast playing)", Style::default().fg(FG))]),
+        Line::from(vec![Span::styled("  e          ", Style::default().fg(ACCENT)), Span::styled("Show full episode title", Style::default().fg(FG))]),
         Line::from(vec![Span::styled("  :mark      ", Style::default().fg(ACCENT)), Span::styled("Toggle played/unplayed on selected episode", Style::default().fg(FG))]),
         Line::from(""),
         Line::from(vec![Span::styled("  COMMAND MODE  (press : to enter)", Style::default().fg(ACCENT).add_modifier(Modifier::BOLD))]),
@@ -747,6 +751,49 @@ fn draw_help_overlay(f: &mut Frame) {
 
     let para = Paragraph::new(lines);
     f.render_widget(para, inner);
+}
+
+fn draw_episode_popup(f: &mut Frame, app: &App) {
+    let ep = match app.selected_episode() {
+        Some(ep) => ep,
+        None => return,
+    };
+
+    let area = f.area();
+    // Center a popup that's 60% wide, 5 rows tall
+    let popup_w = (area.width * 60 / 100).max(30).min(area.width.saturating_sub(4));
+    let popup_h: u16 = 5;
+    let x = area.x + (area.width.saturating_sub(popup_w)) / 2;
+    let y = area.y + (area.height.saturating_sub(popup_h)) / 2;
+    let popup_area = Rect::new(x, y, popup_w, popup_h);
+
+    // Clear background
+    f.render_widget(ratatui::widgets::Clear, popup_area);
+
+    let block = Block::default()
+        .title(" Episode — Esc to close ")
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(ACCENT))
+        .style(Style::default().bg(BG));
+    let inner = block.inner(popup_area);
+    f.render_widget(block, popup_area);
+
+    let duration_str = format_time(ep.duration);
+    let played = if ep.played == 1 { " (played)" } else { "" };
+
+    let lines = vec![
+        Line::from(vec![
+            Span::styled("  ♫ ", Style::default().fg(PLAYING)),
+            Span::styled(&ep.title, Style::default().fg(FG).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled(format!("    {}  {}", duration_str, played), Style::default().fg(DIM)),
+        ]),
+    ];
+
+    let wrap = Paragraph::new(lines).wrap(ratatui::widgets::Wrap { trim: false });
+    f.render_widget(wrap, inner);
 }
 
 fn format_time(seconds: u64) -> String {

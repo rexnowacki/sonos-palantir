@@ -35,6 +35,7 @@ pub struct App {
     pub skip_forward: i32,
     pub skip_back: i32,
     pub current_episode_id: Option<String>,
+    pub episode_popup: bool,
 }
 
 impl App {
@@ -61,6 +62,7 @@ impl App {
             skip_forward: 30,
             skip_back: 10,
             current_episode_id: None,
+            episode_popup: false,
         }
     }
 

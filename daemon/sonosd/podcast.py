@@ -7,6 +7,7 @@ import logging
 import re
 import threading
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from hashlib import sha256
 from pathlib import Path
 from typing import Optional
@@ -82,6 +83,7 @@ class PodcastManager:
         self.skip_forward = skip_forward
         self.skip_back = skip_back
         self.refresh_minutes = refresh_minutes
+        self._feed_titles: dict[str, str] = {}
         self._refresh_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
 
@@ -110,14 +112,20 @@ class PodcastManager:
                         now,
                     ),
                 )
+            # Trim to 10 most recent episodes per podcast
+            await db.execute(
+                "DELETE FROM episodes WHERE podcast_alias = ? AND id NOT IN "
+                "(SELECT id FROM episodes WHERE podcast_alias = ? ORDER BY published DESC LIMIT 10)",
+                (alias, alias),
+            )
             await db.commit()
 
     async def list_episodes(self, alias: str) -> list[dict]:
-        """Return up to 20 episodes for a podcast, newest first."""
+        """Return up to 10 episodes for a podcast, newest first."""
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             cursor = await db.execute(
-                "SELECT * FROM episodes WHERE podcast_alias = ? ORDER BY published DESC LIMIT 20",
+                "SELECT * FROM episodes WHERE podcast_alias = ? ORDER BY published DESC LIMIT 10",
                 (alias,),
             )
             rows = await cursor.fetchall()
@@ -134,7 +142,8 @@ class PodcastManager:
                 )
                 row = await cursor.fetchone()
                 unplayed = row[0] if row else 0
-                result.append({"alias": alias, "url": url, "unplayed": unplayed})
+                name = self._feed_titles.get(alias, alias)
+                result.append({"alias": alias, "name": name, "url": url, "unplayed": unplayed})
         return result
 
     async def save_progress(self, episode_id: str, position: int, played: bool) -> None:
@@ -163,6 +172,9 @@ class PodcastManager:
             log.warning("No URL for podcast alias %s", alias)
             return []
         feed = feedparser.parse(url)
+        feed_title = getattr(feed.feed, "title", None)
+        if feed_title:
+            self._feed_titles[alias] = feed_title
         episodes = []
         for entry in feed.entries:
             audio_url = None
@@ -173,7 +185,11 @@ class PodcastManager:
             if not audio_url:
                 continue
             duration_raw = getattr(entry, "itunes_duration", None)
-            published = getattr(entry, "published", "") or ""
+            published_raw = getattr(entry, "published", "") or ""
+            try:
+                published = parsedate_to_datetime(published_raw).isoformat()
+            except Exception:
+                published = published_raw
             ep_id = sha256(audio_url.encode()).hexdigest()[:16]
             episodes.append(
                 {

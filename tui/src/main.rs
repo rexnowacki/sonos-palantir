@@ -479,8 +479,19 @@ async fn handle_key(app: &mut App, client: &ApiClient, key: KeyEvent) -> Result<
         KeyCode::Char('?') => {
             app.help_open = !app.help_open;
         }
+        KeyCode::Char('e') => {
+            if app.source_mode == crate::app::SourceMode::Podcasts
+                && app.podcast_drill
+                && app.active_panel == crate::app::Panel::Playlists
+                && app.selected_episode().is_some()
+            {
+                app.episode_popup = !app.episode_popup;
+            }
+        }
         KeyCode::Esc => {
-            if app.help_open {
+            if app.episode_popup {
+                app.episode_popup = false;
+            } else if app.help_open {
                 app.help_open = false;
             } else if app.podcast_drill {
                 app.podcast_drill = false;

@@ -105,6 +105,7 @@ cargo build --release
 | `s` | Toggle source (Playlists / Podcasts) |
 | `f` / `→` | Skip forward (podcast, default 30s) |
 | `b` / `←` | Skip back (podcast, default 10s) |
+| `e` | Show full episode title popup (in episode list) |
 | `g` | Toggle group all speakers |
 | `:` | Enter command mode (see below) |
 | `?` | Toggle help screen |
@@ -146,7 +147,8 @@ Press `Esc` to cancel.
 - **Play history** — tracks which playlists you play; set `playlist_sort: popularity` in `config.yaml` to sort by 7-day play count
 - **Sleep timer** — countdown shown in the status line; all speakers pause on expiry
 - **Config hot-reload** — automatic every 5 minutes, or on demand via `:reload`
-- **Podcast listener** — subscribe to RSS feeds in config.yaml, browse episodes, skip forward/back, auto-resume, progress tracking via SQLite
+- **Podcast listener** — subscribe to RSS feeds in config.yaml, browse the 10 most recent episodes, skip forward/back, auto-resume, progress tracking via SQLite
+- **Episode detail popup** — press `e` to see the full episode title when it's too long for the panel
 - **LOTR error messages** — the status line speaks in the voice of Middle-earth
 
 ## Running tests
